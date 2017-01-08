@@ -8,8 +8,8 @@ from math import pi, atan
 def fft(audio_stream):
 	def real_fft(im):
 		im = np.abs(np.fft.fft(im))
-		re = im[0:len(im)/2]
-		re[1:] += im[len(im)/2 + 1:][::-1]
+		re = im[0:int(len(im)/2)]
+		re[1:] += im[int(len(im)/2) + 1:][::-1]
 		return re
 	for l, r in audio_stream:
 		yield real_fft(l) + real_fft(r)
@@ -71,13 +71,13 @@ def rolling_scale_to_max(stream, falloff):
 # [[Float 0.0-1.0 x 32]]
 def process(audio_stream, num_leds, num_samples, sample_rate, falloff_val):
     frequencies = [float(sample_rate*i)/num_samples for i in range(num_leds)]
-    human_ear_multipliers = np.array([human_hearing_multiplier(f) for f in frequencies])
+    # human_ear_multipliers = np.array([human_hearing_multiplier(f) for f in frequencies])
     notes = fft(audio_stream)
     notes = scale_samples(notes,num_leds)
-    notes = add_white_noise(notes, amount=500000)
-    notes = schur(notes, human_ear_multipliers)
+    # notes = add_white_noise(notes, amount=500000)
+    # notes = schur(notes, human_ear_multipliers)
     notes = rolling_scale_to_max(notes, falloff=falloff_val) # Range: 0-1
-    # notes = exaggerate(notes, exponent=10)
-    # notes = rolling_smooth(notes, falloff=.99)
+    notes = exaggerate(notes, exponent=2)
+    #notes = rolling_smooth(notes, falloff=.99)
     return notes
     
