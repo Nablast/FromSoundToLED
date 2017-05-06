@@ -3,7 +3,7 @@
 # ambient sound frequencies to the LEDs.
 
 import numpy as np
-from math import pi, atan
+from math import pi, atan, log10
 
 def fft(audio_stream):
 	def real_fft(im):
@@ -34,9 +34,10 @@ def add_white_noise(array_stream, amount):
 			yield array
 
 def exaggerate(array_stream, exponent):
-	for array in array_stream:
-		yield array ** exponent
-
+    for array in array_stream:
+        # yield array ** exponent
+        yield [log10(9*v + 1) for v in array]
+        
 def human_hearing_multiplier(freq):
 	points = {0:-10, 50:-8, 100:-4, 200:0, 500:2, 1000:0, \
 				2000:2, 5000:4, 10000:-4, 15000:0, 20000:-4}
