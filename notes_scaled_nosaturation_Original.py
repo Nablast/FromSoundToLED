@@ -8,7 +8,7 @@ import math
 import scipy.signal
 
 rate = 44100
-cutOffFrequency = 10000.0
+cutOffFrequency = 1000.0
 freqRatio = (cutOffFrequency/rate)
 N = int(math.sqrt(0.196196 + freqRatio**2)/freqRatio)
 
@@ -18,21 +18,17 @@ order = 3
 b, a = scipy.signal.butter(order, normal_cutoff, btype='high', analog=False)
 
 def fft(audio_stream):
-    def real_fft(im):
-        im = np.abs(np.fft.fft(im))
-        re = im[0:int(len(im)/2)]
-        re[1:] += im[int(len(im)/2 + 1):][::-1]
-        return re
-        
+
     def filterAudio(audio):
         #cumsum = np.cumsum(np.insert(audio,0,0))
         #return (cumsum[windowSize:] - cumsum[:-windowSize]) / windowSize
         return scipy.signal.lfilter(b, a, audio)
         
     for l, r in audio_stream:
-        #yield real_fft(l) + real_fft(r)
+        yield np.abs(np.fft.rfft(l)) + np.abs(np.fft.rfft(r))
         
-        yield np.abs(np.fft.rfft(filterAudio(l))) + np.abs(np.fft.rfft(filterAudio(r)))
+        # Test filter
+        # yield np.abs(np.fft.rfft(filterAudio(l))) + np.abs(np.fft.rfft(filterAudio(r)))
 
 def scale_samples(fft_stream):
     for notes in fft_stream:

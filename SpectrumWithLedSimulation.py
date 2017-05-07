@@ -31,8 +31,8 @@ threashold1 = 0.85
 threashold2 = 0.5
 threashold3 = 0.5
 
-ledNumber = 3
-ledColors = [QtGui.QColor(255, 0, 0), QtGui.QColor(0, 255, 0), QtGui.QColor(0, 0, 255)]
+ledNumber = 4
+# ledColors = [QtGui.QColor(255, 0, 0), QtGui.QColor(0, 255, 0), QtGui.QColor(0, 0, 255)]
 
 decreaseMaxByTime = 0.0005
 increaseMinByTime = 0.0005
@@ -46,6 +46,82 @@ threashU = [0] * ledNumber
 threashU[0] = 0.2
 threashU[1] = 0.2
 threashU[2] = 0.2
+
+def HueToRgb(H):
+    
+    # Hue = HSL
+    # H = rotation
+    # S = Saturation (=1)
+    # L = Luminance (=1)
+    S = 1.
+    L = 0.5 
+    
+    print(H)
+    
+    if L < 0.5:
+        temp1 = L * (1.0 + S)
+    else:
+        temp1 = S + L - L*S
+        
+    print('T1 = ' + str(temp1))    
+    
+    temp2 = 2.0*L - temp1
+    
+    print('T2 = ' + str(temp2)) 
+    
+    tempR = H + 1.0/3.0
+    if tempR > 1.0:
+        tempR = tempR - 1.0
+
+    tempG = H
+    tempB = H - 1.0/3.0
+    if tempB < 0.0:
+        tempB = tempB + 1.0
+        
+    print('TR = ' + str(tempR))
+    print('TG = ' + str(tempG))
+    print('TB = ' + str(tempB))        
+    
+    if 6.0*tempR < 1.0:
+        r = temp2 + (temp1 - temp2) * 6.0 * tempR
+    elif 2.0*tempR < 1.0:
+        r = temp1
+    elif 3.0*tempR < 2.0:
+        r = temp2 + (temp1 - temp2) * (2.0/3.0 - tempR)* 6.0
+    else:
+        r = temp2
+    
+    if 6.0*tempG < 1.0:
+        g = temp2 + (temp1 - temp2) * 6.0 * tempG
+    elif 2.0*tempG < 1.0:
+        g = temp1
+    elif 3.0*tempG < 2.0:
+        g = temp2 + (temp1 - temp2) * (2.0/3.0 - tempG)* 6.0
+    else:
+        g = temp2
+
+    if 6.0*tempB < 1.0:
+        b = temp2 + (temp1 - temp2) * 6.0 * tempB
+    elif 2.0*tempB < 1.0:
+        b = temp1
+    elif 3.0*tempB < 2.0:
+        b = temp2 + (temp1 - temp2) * (2.0/3.0 - tempB)* 6.0
+    else:
+        b = temp2            
+    
+    print('R = ' + str(r))
+    print('G = ' + str(g))
+    print('B = ' + str(b))
+    
+    return int(r*255), int(g*255), int(b*255)
+    
+ledColors = []
+ledColors_max = []
+for iLed in range(ledNumber):
+    Hue = iLed*360/ledNumber
+    r,g,b = HueToRgb(Hue/360.0)
+    ledColors_max.append([r,g,b])
+    ledColors.append(QtGui.QColor(r, g, b))
           
 class changeSquaresThread(QtCore.QThread):
 
@@ -104,7 +180,7 @@ class MyFirstGUI(QtGui.QWidget):
         for iLed in range(ledNumber):
             self.squares.append(QtGui.QFrame(self))
             self.squares[iLed].setGeometry(sizeWindows*((iLed+1)/(ledNumber+1)) - squareSize/2, hSquares - squareSize/2, squareSize, squareSize)
-            self.squareRed.setStyleSheet("QWidget { background-color: %s }" % ledColors[iLed].name())
+            # self.squares[iLed].setStyleSheet("QWidget { background-color: %s }" % ledColors[iLed].name())
         
         # Spectrum
         self.hSpec = sizeWindows*(1/2)
@@ -208,7 +284,7 @@ class MyFirstGUI(QtGui.QWidget):
         
     ##########################
     ###      Gui LEDS      ###
-    ##########################
+    ##########################  
         
     def changeSquares(self,values):
         thread = changeSquaresThread(values)
@@ -221,14 +297,12 @@ class MyFirstGUI(QtGui.QWidget):
         
         self.setMinAndMaxOnSpectrum()
         
-        self.colRed.setRed(valuesForEachSquares[0]*255)
-        self.squareRed.setStyleSheet("QWidget { background-color: %s }" % self.colRed.name())
-        
-        self.colGreen.setGreen(valuesForEachSquares[1]*255)
-        self.squareGreen.setStyleSheet("QWidget { background-color: %s }" % self.colGreen.name())
-        
-        self.colBlue.setBlue(valuesForEachSquares[2]*255)
-        self.squareBlue.setStyleSheet("QWidget { background-color: %s }" % self.colBlue.name())
+        for iLed in range(ledNumber):
+            r = ledColors_max[iLed][0]*valuesForEachSquares[iLed]
+            g = ledColors_max[iLed][1]*valuesForEachSquares[iLed]
+            b = ledColors_max[iLed][2]*valuesForEachSquares[iLed]
+            col = QtGui.QColor(int(r), int(g), int(b))
+            self.squares[iLed].setStyleSheet("QWidget { background-color: %s }" % col.name())
         
     def initSquaresComputation(self):
         
@@ -346,10 +420,10 @@ def processAudio(guiObj,fileAudioPath):
         # Spectrum
         guiObj.changeSpectrum(spectrum[0:numSpectrumBands])
         
-        ledValues, min, max = computeLedValues(spectrum)
+        # ledValues, min, max = computeLedValues(spectrum)
         
-        guiObj.changeMinAndMax(min,max)
-        guiObj.changeSquareThread(ledValues)
+        # guiObj.changeMinAndMax(min,max)
+        # guiObj.changeSquareThread(ledValues)
         
         
         
