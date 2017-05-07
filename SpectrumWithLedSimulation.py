@@ -383,7 +383,7 @@ def read_audio_Original(audio_stream_input, audio_stream_output, num_samples,sou
         
 def processAudio(guiObj,fileAudioPath):
 
-    ComputeOriginal = True
+    ComputeOriginal = False
 
     wf = wave.open(fileAudioPath, 'rb')
     
@@ -408,27 +408,37 @@ def processAudio(guiObj,fileAudioPath):
 
     audio = read_audio(audio_stream_input,audio_stream_output, num_samples=CHUNK, sound=sound, wf=wf)
     
-    spectrumGen = notes_scaled_nosaturation_Original.process(audio,\
-                                            num_leds=numSpectrumBands,\
-                                            num_samples=CHUNK,\
-                                            sample_rate=rate)
-                                                
+    if ComputeOriginal:
     
-    # for sample, led in zip(audio,leds):
-    count = 0
-    for spectrum in spectrumGen:
-        # Spectrum
-        guiObj.changeSpectrum(spectrum[0:numSpectrumBands])
-        
-        # ledValues, min, max = computeLedValues(spectrum)
-        
-        # guiObj.changeMinAndMax(min,max)
-        # guiObj.changeSquareThread(ledValues)
-        
-        
-        
+        spectrumGen = notes_scaled_nosaturation.process(audio,\
+                                                    num_leds=numSpectrumBands,\
+                                                    num_samples=CHUNK,\
+                                                    sample_rate=rate)
+                                                    
+        count = 0
+        for spectrum in spectrumGen:
+            # Spectrum
+            guiObj.changeSpectrum(spectrum[0:numSpectrumBands])
+            
+            # ledValues, min, max = computeLedValues(spectrum)
+            
+            # guiObj.changeMinAndMax(min,max)
+            # guiObj.changeSquareThread(ledValues)
     
-    
+    else:
+        for i,audioSample in enumerate(audio):
+            if i == 0:
+                last_sample = np.zeros((numSpectrumBands,), dtype=np.float)
+            else:
+                last_sample = spectrumGen
+            spectrumGen = notes_scaled_nosaturation_Original.process(audioSample,\
+                                                    last_sample,\
+                                                    num_leds=numSpectrumBands,\
+                                                    num_samples=CHUNK,\
+                                                    sample_rate=rate)
+                                                    
+            guiObj.changeSpectrum(spectrumGen[0:numSpectrumBands])
+                
         
 if __name__ == '__main__':
 

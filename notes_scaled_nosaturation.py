@@ -8,7 +8,7 @@ import math
 import scipy.signal
 
 rate = 44100
-cutOffFrequency = 1000.0
+cutOffFrequency = 5000.0
 freqRatio = (cutOffFrequency/rate)
 N = int(math.sqrt(0.196196 + freqRatio**2)/freqRatio)
 
@@ -36,7 +36,7 @@ def scale_samples(fft_stream):
 
 def rolling_smooth(array_stream, falloff):
     smooth = next(array_stream)
-    yield smooth
+    # yield smooth
     for array in array_stream:
         smooth *= falloff
         smooth += array * (1 - falloff)
