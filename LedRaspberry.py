@@ -1,7 +1,15 @@
 import numpy as np
 import pyaudio
+import bluetooth
 
 from LedsValuesComputation import LedsValuesComputation
+
+# Bluetooth
+bd_addr = "00:19:86:00:00:CE" 
+port = 1
+
+sock = bluetooth.BluetoothSocket (bluetooth.RFCOMM)
+sock.connect((bd_addr,port))
 
 rate = 44100
 CHUNK = 1024
@@ -31,6 +39,7 @@ def read_micro(audio_stream_input, num_samples):
 
 LedsComputator = LedsValuesComputation(nbLeds, numSpectrumBands, rate, CHUNK)
 
+
 audio_stream_input = p.open(format=pyaudio.paInt16,\
                                 channels=2,\
                                 rate=rate,\
@@ -42,4 +51,5 @@ audio = read_micro(audio_stream_input, CHUNK)
 valuesGen = LedsComputator.process(audio)
 
 for spectrum, ledsValues, max, min in valuesGen:
-    print(ledsValues)
+    for v in ledsValues:
+        s.send(text)
