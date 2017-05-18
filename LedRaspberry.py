@@ -51,5 +51,8 @@ audio = read_micro(audio_stream_input, CHUNK)
 valuesGen = LedsComputator.process(audio)
 
 for spectrum, ledsValues, max, min in valuesGen:
+    text = ''
     for v in ledsValues:
-        s.send(text)
+        text += str(v) + ','
+    text += ';'
+    sock.send(text)
