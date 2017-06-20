@@ -1,0 +1,12 @@
+- Ouvrir une fenetre de commande dans le dossier nmap-7.40
+- Taper : nmap -sP 192.168.1.* 
+(Cela donne l'adresse ip de la raspberry pi )
+- Pour se connecter a la console, Taper : ssh pi@192.168.1.XX
+(remplacer XX par les deux chiffres trouves correspondant a la raspberry)
+- Pour se connecter a la GUI :
+    - Si ce n'est pas fait, installer Putty et Xming (installer dans le dossier de ce tuto)
+    - Lancer Xming
+    - Lancer Putty, entrer l'ip de la raspberry, puis connection -> Expand SSH -> Enable X11 Forwarding.
+login : pi
+mdp : raspberry
+    - entrer : "startlxde"

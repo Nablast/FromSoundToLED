@@ -1,0 +1,29 @@
+sudo apt-get update
+sudo apt-get install python2.7 python2.7-dev
+sudo pip install pyaudio
+
+(Aussi essaye ca mais pas sur que ca est fait grand chose ...)
+
+wget http://www.portaudio.com/archives/pa_stable_v19_20140130.tgz
+tar xf pa_stable_v19_20140130.tgz 
+cd portaudio/
+./configure
+make
+sudo make install
+sudo nano ~/.bashrc
+
+    #ADD TO FILE
+    LD_LIBRARY_PATH="/usr/local/lib"
+    export LD_LIBRARY_PATH
+    LD_RUN_PATH="/usr/local/lib"
+    export LD_RUN_PATH
+    PATH=$PATH:/usr/local/lib/
+    export PATH
+
+
+#REBOOT DEVICE
+
+pip install pyaudio
+
+#HAPPY NOW IT WORKS
+)
