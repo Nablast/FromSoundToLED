@@ -1,0 +1,20 @@
+06/20/2017 09:17:13 PM 
+06/20/2017 09:17:13 PM ---------------------------------
+06/20/2017 09:17:13 PM Starting script
+06/20/2017 09:17:13 PM Parameters :
+06/20/2017 09:17:13 PM   - Rate : 44100
+06/20/2017 09:17:13 PM   - Chunk : 2048
+06/20/2017 09:17:13 PM   - NbLeds : 3
+06/20/2017 09:17:13 PM   - numSpectrumBands : 64
+06/20/2017 09:17:13 PM Connect to Bluetooth : 98:D3:36:00:BF:2B on port 1
+06/20/2017 09:17:17 PM Create pyAudio Object
+06/20/2017 09:17:17 PM Informations about Audio :
+06/20/2017 09:17:17 PM 
+audioinjector-pi-soundcard: - (hw:0,0)
+sysdefault
+default
+dmix
+06/20/2017 09:17:17 PM Create LedsComputator Object
+06/20/2017 09:17:18 PM Create Audio Input with PyAudio
+06/20/2017 09:17:18 PM Create Audio Output with PyAudio
+06/20/2017 09:17:18 PM Launching Computation
