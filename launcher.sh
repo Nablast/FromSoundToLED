@@ -12,8 +12,8 @@ git merge master
 
 git add --all
 
-git commit -m 
+git commit -m "Automatic Push"
 
-git push https://Nablast:GBtWSKgJ3@github.com/Nablast/FromSoundToLed.git 
+git push -u https://Nablast:GBtWSKgJ3@github.com/Nablast/FromSoundToLed.git logBranch
 
 sudo python LedRaspberry.py &
