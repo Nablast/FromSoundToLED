@@ -31,14 +31,10 @@ def HueToRgb(H):
     S = 1.
     L = 0.5 
     
-    print(H)
-    
     if L < 0.5:
         temp1 = L * (1.0 + S)
     else:
-        temp1 = S + L - L*S
-        
-    print('T1 = ' + str(temp1))    
+        temp1 = S + L - L*S  
     
     temp2 = 2.0*L - temp1
     
@@ -51,11 +47,7 @@ def HueToRgb(H):
     tempG = H
     tempB = H - 1.0/3.0
     if tempB < 0.0:
-        tempB = tempB + 1.0
-        
-    print('TR = ' + str(tempR))
-    print('TG = ' + str(tempG))
-    print('TB = ' + str(tempB))        
+        tempB = tempB + 1.0     
     
     if 6.0*tempR < 1.0:
         r = temp2 + (temp1 - temp2) * 6.0 * tempR
@@ -83,10 +75,6 @@ def HueToRgb(H):
         b = temp2 + (temp1 - temp2) * (2.0/3.0 - tempB)* 6.0
     else:
         b = temp2            
-    
-    print('R = ' + str(r))
-    print('G = ' + str(g))
-    print('B = ' + str(b))
     
     return int(r*255), int(g*255), int(b*255)
 
