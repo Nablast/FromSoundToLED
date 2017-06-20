@@ -12,18 +12,20 @@ p=pyaudio.PyAudio()
 
 	
 if micro:						
-	rate = 48000
+	rate = 44100
 	audio_stream_input = p.open(format=pyaudio.paInt16,\
 								channels=2,\
 								rate=rate,\
 								input=True,\
-								frames_per_buffer=CHUNK)\
+								frames_per_buffer=CHUNK,\
+								input_device_index=0)\
 
 	audio_stream_output =p.open(format=pyaudio.paInt16,\
 								channels=2,\
 								rate = rate,\
 								output=True,\
-								frames_per_buffer=CHUNK)\
+								frames_per_buffer=CHUNK,\
+								input_device_index=0)\
 
 else:
 	wf = wave.open(fileAudioPath, 'rb')

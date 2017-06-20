@@ -12,7 +12,7 @@ git branch logBranch
 
 git merge master
 
-git add --all
+git add log
 
 git commit -m "Automatic Push"
 
