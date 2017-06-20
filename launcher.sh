@@ -8,14 +8,14 @@ cd /
 
 cd home/pi/Desktop/LED/FromSoundToLed/
 
-git branch logBranch
+git checkout logBranch
 
-git merge master
+git merge origin/master
 
 git add log
 
 git commit -m "Automatic Push"
 
-git push -u https://User:Password@github.com/Nablast/FromSoundToLed.git logBranch 
+git push -u https://Nablast:GBtWSKgJ3@github.com/Nablast/FromSoundToLed.git logBranch 
 
 sudo python LedRaspberry.py &
