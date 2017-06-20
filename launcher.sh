@@ -12,9 +12,9 @@ git branch logBranch
 
 git merge master
 
-git add --all
+git add log
 
-git commit -m 
+git commit -m "Automatic Test"
 
 git push -u https://User:Password@github.com/Nablast/FromSoundToLed.git logBranch 
 
