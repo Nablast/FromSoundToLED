@@ -119,7 +119,7 @@ try:
 		text += 'e'
 		sock.send(text)
 		
-		print(ledsValues[0])
+		# print(ledsValues[0])
 	
 except Exception as e:
 	logging.error("Error happened : " + str(e))
