@@ -4,6 +4,7 @@ import bluetooth
 import time
 import os
 import traceback
+import subprocess
 
 import logging
 
@@ -63,8 +64,12 @@ def read_micro(audio_stream_input, num_samples, audio_stream_output = None):
 			audio_stream_output.write(samples)
 		
 		yield (samples_l, samples_l), buttonsBool
+		
 
 try:
+	
+	subprocess.check_output("/usr/sbin/alsactl --file /usr/share/doc/audioInjector/asound.state.RCA.thru.test restore", shell=True)
+	
 	logging.info("Connect to Bluetooth : " + bd_addr + " on port " + str(port))
 	sock = bluetooth.BluetoothSocket (bluetooth.RFCOMM)
 	sock.connect((bd_addr,port))
@@ -109,8 +114,12 @@ try:
 		text = text[:-1]
 		text += 'e'
 		sock.send(text)
-    
+		
+		# logging.info(text)
+	
 except Exception as e:
 	logging.error("Error happened : " + str(e))
 	logging.error(traceback.format_exc())
 	print(e)
+	sock.close()
+	raise e

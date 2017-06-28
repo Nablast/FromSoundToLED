@@ -1,13 +1,12 @@
 cd /
 
-cd usr/sbin/
-
-/usr/sbin/alsactl --file /usr/share/doc/audioInjector/asound.state.RCA.thru.test restore
-
-cd /
-
 cd home/pi/Desktop/LED/FromSoundToLed/
 
-git pull
+git pull 
 
-sudo python LedRaspberry.py &
+#!/bin/bash
+until sudo python LedRaspberry.py; do
+    echo "'LedRaspberry.py' crashed with exit code $?. Restarting..." >&2
+    sleep 1
+done
+
