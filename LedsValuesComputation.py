@@ -5,8 +5,10 @@ import scipy.signal
 decreaseMaxByTime = 0.0005
 increaseMinByTime = 0.0005
 
-defaultThreashL = 0.05
-defaultThreashU = 0.2
+defaultThreashL = 0.1
+defaultThreashU = 0.15
+
+releaseLed0 = 0.7
 
 from notes_scaled_nosaturation_Original import SpectrumComputer
 
@@ -23,6 +25,8 @@ class LedsValuesComputation:
         self.threashU = [0.2] * nbLeds
 
         self.spectrumComputer = SpectrumComputer(numSpectrumBands, rate, chunk)
+        
+        self.lastLed0Value = 0
         
     def computeLedsValueFromSpectrum(self, spectrum,selectedBandsOnSpectrum):
     
@@ -67,17 +71,23 @@ class LedsValuesComputation:
             if not self.minChanged[iLed]:
                 self.min[iLed] = self.min[iLed] + increaseMinByTime
                 
+                
+        # Release on Led0
+        if result[0] < self.lastLed0Value:
+			result[0] = (result[0]*(1. - releaseLed0)*(1. - releaseLed0) + self.lastLed0Value*releaseLed0*releaseLed0)     
+        self.lastLed0Value = result[0]
+                
         return result
         
     def process(self, AudioGenerator, returnOnlyLedsValues = False):
     
         for i,(audioSample,selectedBandsOnSpectrum) in enumerate(AudioGenerator):
         
-            spectrum = self.spectrumComputer.process(audioSample)        
+            spectrum = self.spectrumComputer.process(audioSample)  
             
             ledsValues = self.computeLedsValueFromSpectrum(spectrum,selectedBandsOnSpectrum)
             
             if returnOnlyLedsValues:
                 yield ledsValues
             else:
-                yield spectrum, ledsValues, self.max, self.min
+                yield spectrum, ledsValues, self.max, self.min, max(audioSample[0])

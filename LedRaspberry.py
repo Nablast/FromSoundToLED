@@ -10,8 +10,6 @@ import logging
 
 from LedsValuesComputation import LedsValuesComputation
 
-# Test
-
 # Logging
 formatLog='%(asctime)s %(message)s'
 datefmt='%m/%d/%Y %I:%M:%S %p'
@@ -38,7 +36,7 @@ logging.info("---------------------------------")
 logging.info("Starting script")
 
 rate = 44100
-CHUNK = 2048
+CHUNK = 1024
 nbLeds = 3
 numSpectrumBands = 64
 
@@ -108,16 +106,20 @@ try:
 	
 	valuesGen = LedsComputator.process(audio)
 
-	for spectrum, ledsValues, max, min in valuesGen:
+	for spectrum, ledsValues, maxV, minV, maxAudioSample in valuesGen:
 			
 		text = 'b'
-		for v in ledsValues:
-			text += str(int(v*255)) + ','
+		if (maxAudioSample > 10):
+			for v in ledsValues:
+				text += str(int(v*255)) + ','
+		else:
+			for v in ledsValues:
+				text += str(int(0)) + ','
 		text = text[:-1]
 		text += 'e'
 		sock.send(text)
 		
-		# logging.info(text)
+		print(ledsValues[0])
 	
 except Exception as e:
 	logging.error("Error happened : " + str(e))
