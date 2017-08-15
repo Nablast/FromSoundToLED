@@ -42,10 +42,16 @@ CHUNK = 2048
 nbLeds = 3
 numSpectrumBands = 64
 
-buttonsBool = np.array([[2],[i for i in range(15,24)],[i for i in range(27,63)]])
+buttonsBool = np.array([[1],[i for i in range(8,24)],[i for i in range(27,63)]])
 
-buttonsBool = np.array([(i in buttonsBool[iLed]) for iLed in range(nbLeds) for i in range(numSpectrumBands)])
-buttonsBool = buttonsBool.reshape((nbLeds, numSpectrumBands))
+currentButtonsBool = np.array([i in buttonsBool[iLed] for iLed in range(nbLeds) for i in range(numSpectrumBands)])
+currentButtonsBool = currentButtonsBool.reshape((nbLeds, numSpectrumBands))
+
+Smoothness = [0.6,0.5,0.85]
+
+ThreashL = [0.3,0.3,0.05]
+ThreashU = [0.2,0.1,0.3]
+
 logging.info("Parameters :")
 logging.info("  - Rate : " + str(rate))
 logging.info("  - Chunk : " + str(CHUNK))
@@ -65,7 +71,7 @@ def read_micro(audio_stream_input, num_samples, audio_stream_output = None):
 		if audio_stream_output != None:
 			audio_stream_output.write(samples)
 		
-		yield (samples_l, samples_l), buttonsBool
+		yield (samples_l, samples_r)
 		
 
 try:
@@ -84,7 +90,7 @@ try:
 	logging.info(infosAudio)
 	
 	logging.info("Create LedsComputator Object")
-	LedsComputator = LedsValuesComputation(nbLeds, numSpectrumBands, rate, CHUNK)
+	LedsComputator = LedsValuesComputation(nbLeds, numSpectrumBands, rate, CHUNK, currentButtonsBool, ThreashL, ThreashU)
 
 	logging.info("Create Audio Input with PyAudio")
 	audio_stream_input = p.open(format=pyaudio.paInt16,\
@@ -108,16 +114,22 @@ try:
 	
 	valuesGen = LedsComputator.process(audio)
 
+    lastValues = [0]*nbLeds
 	for spectrum, ledsValues, max, min in valuesGen:
 			
+        # Smooth Leds
+        for i in range(nbLeds):
+            if ledsValues[i] < lastValues[i]:
+                ledsValues[i] = ledsValues[i] + (lastValues[i] - ledsValues[i]) * Smoothness[i]
+        
+        lastValues = ledsValues
+            
 		text = 'b'
 		for v in ledsValues:
 			text += str(int(v*255)) + ','
 		text = text[:-1]
 		text += 'e'
 		sock.send(text)
-		
-		# logging.info(text)
 	
 except Exception as e:
 	logging.error("Error happened : " + str(e))

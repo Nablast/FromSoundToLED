@@ -5,26 +5,29 @@ import scipy.signal
 decreaseMaxByTime = 0.0005
 increaseMinByTime = 0.0005
 
-defaultThreashL = 0.05
-defaultThreashU = 0.2
-
 from notes_scaled_nosaturation_Original import SpectrumComputer
 
 class LedsValuesComputation:
 
-    def __init__(self, nbLeds, numSpectrumBands, rate, chunk):
+    def __init__(self, nbLeds, numSpectrumBands, rate, chunk, buttonStates, threashL, threashU):
         
         self.nbLeds = nbLeds
         
         self.min = [1] * nbLeds
         self.max = [0] * nbLeds
 
-        self.threashL = [0.05] * nbLeds
-        self.threashU = [0.2] * nbLeds
+        self.threashL = threashL
+        self.threashU = threashU
 
         self.spectrumComputer = SpectrumComputer(numSpectrumBands, rate, chunk)
         
-    def computeLedsValueFromSpectrum(self, spectrum,selectedBandsOnSpectrum):
+        self.buttonStates = buttonStates
+        
+    def setButtonStates(self, buttonStates):
+    
+        self.buttonStates = buttonStates
+        
+    def computeLedsValueFromSpectrum(self, spectrum):
     
         self.maxChanged = [False]*self.nbLeds
         self.minChanged = [False]*self.nbLeds
@@ -37,7 +40,9 @@ class LedsValuesComputation:
             currentMax = 0
             # For each Led : get max and min on values checked by buttons
             for i,v in enumerate(spectrum):
-                if (selectedBandsOnSpectrum[iLed][i]):
+            
+                if (self.buttonStates[iLed][i]):
+                
                     if (v > self.max[iLed]):
                         self.max[iLed] = v
                         self.maxChanged[iLed] = True
@@ -69,13 +74,13 @@ class LedsValuesComputation:
                 
         return result
         
-    def process(self, AudioGenerator, returnOnlyLedsValues = False):
+    def process(self, audioSamples, returnOnlyLedsValues = False):
     
-        for i,(audioSample,selectedBandsOnSpectrum) in enumerate(AudioGenerator):
+        for i, audioSample in enumerate(audioSamples):
         
             spectrum = self.spectrumComputer.process(audioSample)        
             
-            ledsValues = self.computeLedsValueFromSpectrum(spectrum,selectedBandsOnSpectrum)
+            ledsValues = self.computeLedsValueFromSpectrum(spectrum)
             
             if returnOnlyLedsValues:
                 yield ledsValues

@@ -24,7 +24,6 @@ class SpectrumComputer:
         for i in range(numSpectrumBands):
             self.indicesInFFT[i] = max(i,int(self.indicesInFFT[i]))
 
-        
         frequencies = [float(sample_rate*i)/Chunk for i in range(numSpectrumBands)]
         self.human_ear_multipliers = np.array([self.human_hearing_multiplier(f) for f in frequencies])
 
