@@ -78,11 +78,11 @@ class LedsValuesComputation:
     
         for i, audioSample in enumerate(audioSamples):
         
-            spectrum = self.spectrumComputer.process(audioSample)        
+            spectrum = self.spectrumComputer.process(audioSample)  
             
             ledsValues = self.computeLedsValueFromSpectrum(spectrum)
             
             if returnOnlyLedsValues:
                 yield ledsValues
             else:
-                yield spectrum, ledsValues, self.max, self.min
+                yield spectrum, ledsValues, self.max, self.min, max(audioSample[0])
