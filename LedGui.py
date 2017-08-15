@@ -9,7 +9,7 @@ import pyaudio
 import wave
 from threading import Thread
 
-CHUNK = 2048
+CHUNK = 1024
 
 sizeWindows = 800
 numSpectrumBands = 64
@@ -155,7 +155,7 @@ class LedGUI(QtGui.QWidget):
         
         for i in range(nbLeds):
         
-            grad = QtGui.QRadialGradient(QtCore.QPointF(self.ledsRect[i].center()), 100.0)
+            grad = QtGui.QRadialGradient(QtCore.QPointF(self.ledsRect[i].center()), 70.0)
             grad.setColorAt(0, QtGui.QColor(self.ledCurrentValues[i]*self.ledColors[i][0], self.ledCurrentValues[i]*self.ledColors[i][1], self.ledCurrentValues[i]*self.ledColors[i][2]))
             grad.setColorAt(1, QtCore.Qt.black)
             painter.setBrush(grad)
@@ -392,9 +392,13 @@ class LedGUI(QtGui.QWidget):
         valuesGen = LedsComputator.process(audio)
 
         lastValues = [0]*nbLeds
-        for spectrum, ledsValues, max, min in valuesGen:
+        for spectrum, ledsValues, max, min, maxAudioSample in valuesGen:
         
             LedsComputator.setButtonStates(GuiObject.getCurrentButtonsStates())
+            
+            # Do not light up Leds if there is no sound.
+            if (maxAudioSample < 10):
+                ledsValues = [0 for i in range(len(ledsValues))]
         
             # Smooth Leds
             for i in range(nbLeds):
