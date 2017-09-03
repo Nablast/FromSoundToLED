@@ -35,7 +35,7 @@ logging.info("")
 logging.info("---------------------------------")
 logging.info("Starting script")
 
-rate = 44100
+rate = 22050
 CHUNK = 1024
 nbLeds = 3
 numSpectrumBands = 64

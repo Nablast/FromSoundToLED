@@ -9,11 +9,16 @@ import pyaudio
 import wave
 from threading import Thread
 
-CHUNK = 1024
+#Test
+import matplotlib.pyplot as plt
+
+SampleRate = 22050
+CHUNK = 512
 
 sizeWindows = 800
-numSpectrumBands = 64
+numSpectrumBands = 62
 nbLeds = 3
+frequencySeparators = [90,800]
 
 ratioSizeSquareMax = 0.15
 ratioLines = 0.01
@@ -27,6 +32,9 @@ Smoothness = [0.6,0.5,0.85]
 
 ThreashL = [0.3,0.3,0.05]
 ThreashU = [0.2,0.1,0.3]
+
+global stopAudio
+stopAudio = False
 
 def HueToRgb(H):
     
@@ -147,6 +155,11 @@ class LedGUI(QtGui.QWidget):
         self.setWindowTitle('LED Simulation')
         self.show()
         
+    def closeEvent(self, evnt):
+        global stopAudio
+        stopAudio = True
+        super(LedGUI, self).closeEvent(evnt)
+        
     # Used to paint LEDs
     def paintEvent(self, e):
     
@@ -199,6 +212,17 @@ class LedGUI(QtGui.QWidget):
          
     def initSpectrum(self):
     
+        xSpectrum = np.array([float(SampleRate)*float(i)/float(CHUNK) for i in range(int(CHUNK/2))])
+        ySpectrum = np.array(range(int(CHUNK/2)))
+        
+        plt.ion()
+
+        self.figTest = plt.figure()
+        ax = self.figTest.add_subplot(111)
+        self.lineTest, = ax.plot(xSpectrum, ySpectrum, 'r-') # Returns a tuple of line objects, thus the comma
+        ax.axis([xSpectrum[0], xSpectrum[-1], 0, 1])
+        self.figTest.canvas.draw()
+    
         # Spectrum
         self.spectrumLines = []
         self.wSpectrum = []
@@ -244,10 +268,10 @@ class LedGUI(QtGui.QWidget):
                 self.guiTreasholdLMax[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed.name())
                 
         # Escalier au début pour faire jolie
-        test = []
-        for i in range(0,self.numSpectrumBands):
-            test.append(i/self.numSpectrumBands)
-        self.setSpectrum(test)
+        # test = []
+        # for i in range(0,self.numSpectrumBands):
+            # test.append(i/self.numSpectrumBands)
+        # self.setSpectrum(test)
         
     ##########################
     ###      Gui LEDS      ###
@@ -274,9 +298,9 @@ class LedGUI(QtGui.QWidget):
         thread.start()
         
     def setSpectrum(self,values):
-        
-        for i,v in enumerate(values):
-            self.spectrumLines[i].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax * v), ratioLines*sizeWindows, int(self.heightSpectrumMax*v))
+       
+        for i in range(numSpectrumBands):
+            self.spectrumLines[i].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax * values[i]), ratioLines*sizeWindows, int(self.heightSpectrumMax*values[i]))
         
     def changeMinAndMaxOnSpectrum(self,valuesMax,valuesMin):
         thread = changeMinAndMaxOnSpectrumThread(valuesMax,valuesMin)
@@ -314,8 +338,9 @@ class LedGUI(QtGui.QWidget):
     ####################################
     
     # Convert the audio data to numbers, num_samples at a time.
-    def read_audio(self, audio_stream_input, audio_stream_output, num_samples,sound, wf):
-        while sound != b'':
+    def read_audio(self, audio_stream_input, audio_stream_output, num_samples,sound, wf, ):
+        global stopAudio
+        while sound != b'' and not (stopAudio):
             audio_stream_output.write(sound)
             # Read all the input data. 
             # samples = audio_stream_input.read(num_samples) 
@@ -326,6 +351,9 @@ class LedGUI(QtGui.QWidget):
             sound = wf.readframes(num_samples)
                  
             yield (samples_l, samples_r)
+            
+        if not (stopAudio):
+            print('Sound stop')
 
 
     def read_micro(self, audio_stream_input, audio_stream_output, num_samples):
@@ -344,72 +372,76 @@ class LedGUI(QtGui.QWidget):
      
     def processAudioImpl(GuiObject, fileAudioPath,LocalFile):
 
-        p=pyaudio.PyAudio()
-
-        if LocalFile:
-
-            wf = wave.open(fileAudioPath, 'rb')
-            rate = wf.getframerate()
+        try:
             p=pyaudio.PyAudio()
 
-            LedsComputator = LedsValuesComputation(GuiObject.nbLeds, GuiObject.numSpectrumBands, rate, CHUNK, GuiObject.getCurrentButtonsStates(),  ThreashL, ThreashU)
+            if LocalFile:
 
-            audio_stream_input =p.open(format=p.get_format_from_width(wf.getsampwidth()),\
-                                        channels=wf.getnchannels(),\
-                                        rate = rate,\
-                                        input=True,\
-                                        frames_per_buffer=CHUNK)\
-                                        
-            audio_stream_output =p.open(format=p.get_format_from_width(wf.getsampwidth()),\
-                                        channels=wf.getnchannels(),\
-                                        rate = rate,\
-                                        output=True,\
-                                        frames_per_buffer=CHUNK)\
+                wf = wave.open(fileAudioPath, 'rb')
+                TestSampleRate = wf.getframerate()
+                p=pyaudio.PyAudio()
+                
+                # Reading Sound at SampleRate : SampleRate
 
-            sound = wf.readframes(CHUNK)
+                LedsComputator = LedsValuesComputation(SampleRate, CHUNK, frequencySeparators,  ThreashL, ThreashU)
 
-            audio = GuiObject.read_audio(audio_stream_input,audio_stream_output, CHUNK, sound, wf)
+                audio_stream_input =p.open(format=p.get_format_from_width(wf.getsampwidth()),\
+                                            channels=wf.getnchannels(),\
+                                            rate = SampleRate,\
+                                            input=True,\
+                                            frames_per_buffer=CHUNK)\
+                                            
+                audio_stream_output =p.open(format=p.get_format_from_width(wf.getsampwidth()),\
+                                            channels=wf.getnchannels(),\
+                                            rate = TestSampleRate,\
+                                            output=True,\
+                                            frames_per_buffer=CHUNK)\
 
-        else:
+                sound = wf.readframes(CHUNK)
 
-            rate = 44100
-            LedsComputator = LedsValuesComputation(GuiObject.nbLeds, GuiObject.numSpectrumBands, rate, CHUNK, GuiObject.getCurrentButtonsStates(), ThreashL, ThreashU)
+                audio = GuiObject.read_audio(audio_stream_input,audio_stream_output, CHUNK, sound, wf)
 
-            audio_stream_input = p.open(format=pyaudio.paInt16,\
-                                        channels=2,\
-                                        rate=rate,\
-                                        input=True,\
-                                        frames_per_buffer=CHUNK)\
+            else:
 
-            audio_stream_output =p.open(format=pyaudio.paInt16,\
-                                        channels=2,\
-                                        rate = rate,\
-                                        output=True,\
-                                        frames_per_buffer=CHUNK)\
+                LedsComputator = LedsValuesComputation(SampleRate, CHUNK, frequencySeparators, ThreashL, ThreashU)
 
-            audio = GuiObject.read_micro(audio_stream_input,audio_stream_output, CHUNK)          
+                audio_stream_input = p.open(format=pyaudio.paInt16,\
+                                            channels=2,\
+                                            rate=SampleRate,\
+                                            input=True,\
+                                            frames_per_buffer=CHUNK)\
+
+                audio_stream_output =p.open(format=pyaudio.paInt16,\
+                                            channels=2,\
+                                            rate = SampleRate,\
+                                            output=True,\
+                                            frames_per_buffer=CHUNK)\
+
+                audio = GuiObject.read_micro(audio_stream_input,audio_stream_output, CHUNK)          
+                
+            valuesGen = LedsComputator.process(audio)
+
+            lastValues = [0]*nbLeds
+            for spectrum, ledsValues, max, min, maxAudioSample in valuesGen:
             
-        valuesGen = LedsComputator.process(audio)
-
-        lastValues = [0]*nbLeds
-        for spectrum, ledsValues, max, min, maxAudioSample in valuesGen:
-        
-            LedsComputator.setButtonStates(GuiObject.getCurrentButtonsStates())
+                # Do not light up Leds if there is no sound.
+                if (maxAudioSample < 10):
+                    ledsValues = [0 for i in range(len(ledsValues))]
             
-            # Do not light up Leds if there is no sound.
-            if (maxAudioSample < 10):
-                ledsValues = [0 for i in range(len(ledsValues))]
-        
-            # Smooth Leds
-            for i in range(nbLeds):
-                if ledsValues[i] < lastValues[i]:
-                    ledsValues[i] = ledsValues[i] + (lastValues[i] - ledsValues[i]) * Smoothness[i]
+                # Smooth Leds
+                for i in range(nbLeds):
+                    if ledsValues[i] < lastValues[i]:
+                        ledsValues[i] = ledsValues[i] + (lastValues[i] - ledsValues[i]) * Smoothness[i]
+                
+                lastValues = ledsValues
             
-            lastValues = ledsValues
-        
-            GuiObject.changeSpectrum(spectrum)
-            GuiObject.changeLeds(ledsValues)
-            GuiObject.changeMinAndMaxOnSpectrum(max,min)
+                GuiObject.changeSpectrum(spectrum)
+                GuiObject.changeLeds(ledsValues)
+                GuiObject.changeMinAndMaxOnSpectrum(max,min)
+                
+        except Exception as e:
+            GuiObject.close()
+            raise(e)
     
     def processAudioLocal(self, pressed):
         
@@ -424,10 +456,10 @@ class LedGUI(QtGui.QWidget):
         fileName = QtGui.QFileDialog.getOpenFileName(self, 'OpenFile', 'D:\DevProjects\LED\RaspberryPi\FromSoundToLED\data', 'AudioFile (*.wav)')
         return fileName
         
-    
        
 if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
     ex = LedGUI(sizeWindows, numSpectrumBands, nbLeds)
     sys.exit(app.exec_())
+    ex.stopMe()

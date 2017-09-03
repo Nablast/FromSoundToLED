@@ -7,6 +7,7 @@
     - Si ce n'est pas fait, installer Putty et Xming (installer dans le dossier de ce tuto)
     - Lancer Xming
     - Lancer Putty, entrer l'ip de la raspberry, puis connection -> Expand SSH -> Enable X11 Forwarding.
+    
 login : pi
 mdp : raspberry
     - entrer : "startlxde"
