@@ -130,7 +130,7 @@ class LedsValuesComputation:
             
     def smoothLed(self, iLed, ledValue):
     
-        # We want to decrease thtough the function : -Ax² + B
+        # We want to decrease thtough the function : -A*x*x + B
         # We want to be at prevMax at t = 0.
         # We want to be at 0 at t = Smoothness
         # => f(0) = B = prevMax
