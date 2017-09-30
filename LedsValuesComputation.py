@@ -28,7 +28,7 @@ class LedsValuesComputation:
         
         self.lockFrequenciesChanged = [mp.Lock() for i in range(self.nbLeds)]
         
-        self.last_sample = [[1]]*self.nbLeds
+        self.last_sample = [np.array([1])]*self.nbLeds
         self.avg_peak = [0.0]*self.nbLeds
         
         self.min = [1] * self.nbLeds
@@ -134,9 +134,9 @@ class LedsValuesComputation:
         # We want to be at prevMax at t = 0.
         # We want to be at 0 at t = Smoothness
         # => f(0) = B = prevMax
-        #    f(Smoothness) = -A*Smoothness² + B = 0
+        #    f(Smoothness) = -A*Smoothness*Smoothness + B = 0
         # 
-        # => A = prevMax / Smoothness²
+        # => A = prevMax / Smoothness*Smoothness
         #    B = prevMax 
         
         
@@ -235,7 +235,8 @@ class LedsValuesComputation:
                 
                 self.lockFrequenciesChanged[iLed].release()
                 
+			# audioSample[0] to take only left side of signal
             if returnOnlyLedsValues:
-                yield ledsValues
+                yield ledsValues, max(audioSample[0])
             else:
                 yield spectrums, ledsValues, self.max, self.min, self.cThreshL, self.cThreshU, max(audioSample[0])

@@ -35,17 +35,18 @@ logging.info("")
 logging.info("---------------------------------")
 logging.info("Starting script")
 
-rate = 22050
+rate = 44100
 CHUNK = 1024
 nbLeds = 3
 
-ThreashL = [0.4,0.3,0.3]
+ThreashL = [0.2,0.3,0.3]
 ThreashU = [0.2,0.3,0.3]
 
 frequencySeparators = [[0,80], \
                            [450, 700], \
                            [800,2000]]
-smothness = [380, 340, 300]
+
+smothness = [200, 200, 200]
 
 logging.info("Parameters :")
 logging.info("  - Rate : " + str(rate))
@@ -71,11 +72,11 @@ if __name__ == '__main__':
 
     try:
         
-        # subprocess.check_output("/usr/sbin/alsactl --file /usr/share/doc/audioInjector/asound.state.RCA.thru.test restore", shell=True)
+        subprocess.check_output("/usr/sbin/alsactl --file /usr/share/doc/audioInjector/asound.state.RCA.thru.test restore", shell=True)
         
-        # logging.info("Connect to Bluetooth : " + bd_addr + " on port " + str(port))
-        # sock = bluetooth.BluetoothSocket (bluetooth.RFCOMM)
-        # sock.connect((bd_addr,port))
+        logging.info("Connect to Bluetooth : " + bd_addr + " on port " + str(port))
+        sock = bluetooth.BluetoothSocket (bluetooth.RFCOMM)
+        sock.connect((bd_addr,port))
         
         logging.info("Create pyAudio Object")
         p=pyaudio.PyAudio()
@@ -107,13 +108,11 @@ if __name__ == '__main__':
         
         audio = read_micro(audio_stream_input, CHUNK, audio_stream_output)
         
-        valuesGen = LedsComputator.process(audio)
+        valuesGen = LedsComputator.process(audio, returnOnlyLedsValues=True)
 
-        for spectrum, ledsValues, maxV, minV, maxAudioSample in valuesGen:
+        for ledsValues, maxAudioSample in valuesGen:
                 
-            # Do not light up Leds if there is no sound.
-            if (maxAudioSample < 10):
-                ledsValues = [0 for i in range(len(ledsValues))]
+            # print(maxAudioSample)
                 
             text = 'b'
             if (maxAudioSample > 10):
@@ -124,11 +123,11 @@ if __name__ == '__main__':
                     text += str(int(0)) + ','
             text = text[:-1]
             text += 'e'
-            # sock.send(text)
+            sock.send(text)
         
     except Exception as e:
         logging.error("Error happened : " + str(e))
         logging.error(traceback.format_exc())
         print(e)
-        # sock.close()
+        sock.close()
         raise e
