@@ -13,84 +13,30 @@ from threading import Thread
 import matplotlib.pyplot as plt
 
 SampleRate = 22050
-CHUNK = 512
+CHUNK = 1024
 
-sizeWindows = 800
-numSpectrumBands = 62
-nbLeds = 3
-frequencySeparators = [90,800]
+sizeWindows = 1000
+numSpectrumBands = 128
+nbLeds = 4
+
+frequencySeparators = [[0,70], \
+                       [300, 600], \
+                       [600,1100], \
+                       [3000,3500]]
 
 ratioSizeSquareMax = 0.15
-ratioLines = 0.01
-spaceBetweenLines = 0.005
+ratioLines = 0.0035
+spaceBetweenLines = 0.0025
 
 from LedsValuesComputation import LedsValuesComputation
 
-buttonsBool = np.array([[1],[i for i in range(8,24)],[i for i in range(27,63)]])
+Smoothness = [0.95,0.95,0.95,0.95]
 
-Smoothness = [0.6,0.5,0.85]
-
-ThreashL = [0.3,0.3,0.05]
-ThreashU = [0.2,0.1,0.3]
+ThreashL = [0.3,0.3,0.15,0.15]
+ThreashU = [0.2,0.4,0.4,0.3]
 
 global stopAudio
 stopAudio = False
-
-def HueToRgb(H):
-    
-    # Hue = HSL
-    # H = rotation
-    # S = Saturation (=1)
-    # L = Luminance (=1)
-    S = 1.
-    L = 0.5 
-    
-    if L < 0.5:
-        temp1 = L * (1.0 + S)
-    else:
-        temp1 = S + L - L*S  
-    
-    temp2 = 2.0*L - temp1
-    
-    print('T2 = ' + str(temp2)) 
-    
-    tempR = H + 1.0/3.0
-    if tempR > 1.0:
-        tempR = tempR - 1.0
-
-    tempG = H
-    tempB = H - 1.0/3.0
-    if tempB < 0.0:
-        tempB = tempB + 1.0     
-    
-    if 6.0*tempR < 1.0:
-        r = temp2 + (temp1 - temp2) * 6.0 * tempR
-    elif 2.0*tempR < 1.0:
-        r = temp1
-    elif 3.0*tempR < 2.0:
-        r = temp2 + (temp1 - temp2) * (2.0/3.0 - tempR)* 6.0
-    else:
-        r = temp2
-    
-    if 6.0*tempG < 1.0:
-        g = temp2 + (temp1 - temp2) * 6.0 * tempG
-    elif 2.0*tempG < 1.0:
-        g = temp1
-    elif 3.0*tempG < 2.0:
-        g = temp2 + (temp1 - temp2) * (2.0/3.0 - tempG)* 6.0
-    else:
-        g = temp2
-
-    if 6.0*tempB < 1.0:
-        b = temp2 + (temp1 - temp2) * 6.0 * tempB
-    elif 2.0*tempB < 1.0:
-        b = temp1
-    elif 3.0*tempB < 2.0:
-        b = temp2 + (temp1 - temp2) * (2.0/3.0 - tempB)* 6.0
-    else:
-        b = temp2            
-    
-    return int(r*255), int(g*255), int(b*255)
 
 class changeLedsThread(QtCore.QThread):
 
@@ -118,16 +64,19 @@ class changeSpectrumThread(QtCore.QThread):
         
 class changeMinAndMaxOnSpectrumThread(QtCore.QThread):
 
-    def __init__(self, valuesMax, valuesMin):
+    def __init__(self, valuesMax, valuesMin, threashL, threashH):
         QtCore.QThread.__init__(self)
         self.valuesMax = valuesMax
         self.valuesMin = valuesMin
+        
+        self.threashL = threashL
+        self.threashH = threashH
 
     def __del__(self):
         self.wait()
         
     def run(self):
-        self.emit(QtCore.SIGNAL("setMinAndMaxOnSpectrum(PyQt_PyObject)"), [self.valuesMax, self.valuesMin])
+        self.emit(QtCore.SIGNAL("setMinAndMaxOnSpectrum(PyQt_PyObject)"), [self.valuesMax, self.valuesMin, self.threashL, self.threashH])
 
 class LedGUI(QtGui.QWidget):
 
@@ -199,11 +148,7 @@ class LedGUI(QtGui.QWidget):
     
         self.ledsRect = []
         
-        self.ledColors = []
-        for iLed in range(self.nbLeds):
-            Hue = iLed*360/self.nbLeds
-            r,g,b = HueToRgb(Hue/360.0)
-            self.ledColors.append([r,g,b])
+
         
         squareSize = min(ratioSizeSquareMax*self.sizeWindows, 4 * self.sizeWindows / ((5*self.nbLeds)+1))
         hSquares = self.sizeWindows*(5/6)
@@ -212,66 +157,81 @@ class LedGUI(QtGui.QWidget):
          
     def initSpectrum(self):
     
-        xSpectrum = np.array([float(SampleRate)*float(i)/float(CHUNK) for i in range(int(CHUNK/2))])
-        ySpectrum = np.array(range(int(CHUNK/2)))
+        # xSpectrum = np.array([float(SampleRate)*float(i)/float(CHUNK) for i in range(int(CHUNK/2))])
+        # ySpectrum = np.array(range(int(CHUNK/2)))
         
-        plt.ion()
+        # plt.ion()
 
-        self.figTest = plt.figure()
-        ax = self.figTest.add_subplot(111)
-        self.lineTest, = ax.plot(xSpectrum, ySpectrum, 'r-') # Returns a tuple of line objects, thus the comma
-        ax.axis([xSpectrum[0], xSpectrum[-1], 0, 1])
-        self.figTest.canvas.draw()
+        # self.figTest = plt.figure()
+        # ax = self.figTest.add_subplot(111)
+        # self.lineTest, = ax.plot(xSpectrum, ySpectrum, 'r-') # Returns a tuple of line objects, thus the comma
+        # ax.axis([xSpectrum[0], xSpectrum[-1], 0, 1])
+        # self.figTest.canvas.draw()
     
+        # Define led by Bins
+        frequencies = [SampleRate*i/CHUNK for i in range(1,int(CHUNK/2)+1)]
+        self.ledByBins = [-1]*int(CHUNK/2)
+        for indexBin in range(int(CHUNK/2)):
+            currentFreq = frequencies[indexBin]
+            for iLed in range(len(frequencySeparators)):
+                if currentFreq >= frequencySeparators[iLed][0] and currentFreq < frequencySeparators[iLed][1]:
+                    self.ledByBins[indexBin] = iLed
+                    
         # Spectrum
         self.spectrumLines = []
         self.wSpectrum = []
         self.ySpectrum = self.sizeWindows*(1/2)
         self.heightSpectrumMax = self.sizeWindows*(1/4)
         for i in range(0,self.numSpectrumBands):
+
             self.spectrumLines.append(QtGui.QFrame(self))
             self.wSpectrum.append(self.sizeWindows*(1/2) + (i - self.numSpectrumBands/2)*(ratioLines+spaceBetweenLines)*self.sizeWindows)
             self.spectrumLines[i].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, self.ySpectrum, ratioLines*self.sizeWindows, 0 )
-            self.spectrumLines[i].setStyleSheet("QWidget { background-color: %s }" % QtGui.QColor(255, 255, 255).name())
             
-        # Buttons Below Spectrums
-        self.buttonsForSquare = [[]] * self.nbLeds
-        hButtons = self.ySpectrum
-        for iLed in range(self.nbLeds):
-            hButtons = hButtons + spaceBetweenLines*self.sizeWindows + ratioLines*self.sizeWindows
-            self.buttonsForSquare[iLed] = [None]*self.numSpectrumBands
-            for i in range(self.numSpectrumBands):
-                self.buttonsForSquare[iLed][i] = QtGui.QCheckBox("",self)
-                self.buttonsForSquare[iLed][i].resize(ratioLines*self.sizeWindows,ratioLines*self.sizeWindows)
-                self.buttonsForSquare[iLed][i].move(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, hButtons + ratioLines*self.sizeWindows/2)  
-
-                if (i in buttonsBool[iLed]):    
-                    self.buttonsForSquare[iLed][i].setChecked(True)
+            # Line Color
+            if self.ledByBins[i] != -1:
+                r,g,b = self.ledColors[self.ledByBins[i]]
+            else:
+                r,g,b = [255,255,255]
+            self.spectrumLines[i].setStyleSheet("QWidget { background-color: %s }" % QtGui.QColor(r, g, b).name())
         
         # Min and Max on GUI
         self.heightMinMaxFrame = ratioLines*self.sizeWindows*0.2
-        self.guiTreasholdLMin = []
-        self.guiTreasholdLMax = []
+        self.guiMin = []
+        self.guiMax = []
+        self.guiThreashLow = []
+        self.guiThreashHigh = []
         for i in range(0,self.numSpectrumBands):
-            self.guiTreasholdLMin.append([])
-            self.guiTreasholdLMax.append([])
+            self.guiMin.append([])
+            self.guiMax.append([])
+            self.guiThreashLow.append([])
+            self.guiThreashHigh.append([])
             for iLed in range(self.nbLeds):
 
                 colorLed = QtGui.QColor(self.ledColors[iLed][0],self.ledColors[iLed][1],self.ledColors[iLed][2])
+                colorLed2 = QtGui.QColor(self.ledColors[iLed][0] - 0.2,self.ledColors[iLed][1] - 0.2,self.ledColors[iLed][2] - 0.2)
 
-                self.guiTreasholdLMin[i].append(QtGui.QFrame(self))
-                self.guiTreasholdLMin[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
-                self.guiTreasholdLMin[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed.name())
+                self.guiMin[i].append(QtGui.QFrame(self))
+                self.guiMin[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
+                self.guiMin[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed.name())
                 
-                self.guiTreasholdLMax[i].append(QtGui.QFrame(self))
-                self.guiTreasholdLMax[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
-                self.guiTreasholdLMax[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed.name())
+                self.guiMax[i].append(QtGui.QFrame(self))
+                self.guiMax[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
+                self.guiMax[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed.name())
+                
+                self.guiThreashLow[i].append(QtGui.QFrame(self))
+                self.guiThreashLow[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
+                self.guiThreashLow[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed2.name())
+                
+                self.guiThreashHigh[i].append(QtGui.QFrame(self))
+                self.guiThreashHigh[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
+                self.guiThreashHigh[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed2.name())
                 
         # Escalier au début pour faire jolie
-        # test = []
-        # for i in range(0,self.numSpectrumBands):
-            # test.append(i/self.numSpectrumBands)
-        # self.setSpectrum(test)
+        test = []
+        for i in range(0,self.numSpectrumBands):
+            test.append(i/self.numSpectrumBands)
+        self.setSpectrum(test)
         
     ##########################
     ###      Gui LEDS      ###
@@ -302,36 +262,30 @@ class LedGUI(QtGui.QWidget):
         for i in range(numSpectrumBands):
             self.spectrumLines[i].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax * values[i]), ratioLines*sizeWindows, int(self.heightSpectrumMax*values[i]))
         
-    def changeMinAndMaxOnSpectrum(self,valuesMax,valuesMin):
-        thread = changeMinAndMaxOnSpectrumThread(valuesMax,valuesMin)
+    def changeMinAndMaxOnSpectrum(self,valuesMax,valuesMin, threashL, threashH):
+        thread = changeMinAndMaxOnSpectrumThread(valuesMax,valuesMin, threashL, threashH)
         self.connect(thread, QtCore.SIGNAL("setMinAndMaxOnSpectrum(PyQt_PyObject)"), self.setMinAndMaxOnSpectrum)
         thread.start()
         
-    def setMinAndMaxOnSpectrum(self,valuesMaxMin):
+    def setMinAndMaxOnSpectrum(self,valuesMaxMinThreshLU):
         
-        valuesMax = valuesMaxMin[0]
-        valuesMin = valuesMaxMin[1]
+        valuesMax = valuesMaxMinThreshLU[0]
+        valuesMin = valuesMaxMinThreshLU[1]
+        threashLow = valuesMaxMinThreshLU[2]
+        threashHigh = valuesMaxMinThreshLU[3]
         
         # Pour chaque bande de spectre
         for i in range(0,self.numSpectrumBands):
             
             #Pour chaque Led
             for iLed in range(self.nbLeds):
-                if (self.buttonsForSquare[iLed][i].isChecked()):
-                
-                    self.guiTreasholdLMin[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2 - 3, int(self.ySpectrum - self.heightSpectrumMax*valuesMin[iLed]), ratioLines*sizeWindows, 3 )
-                    self.guiTreasholdLMax[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2 - 3, int(self.ySpectrum - self.heightSpectrumMax*valuesMax[iLed]), ratioLines*sizeWindows, 3 )
+                if (self.ledByBins[i] == iLed):
                     
-                else:
-                    self.guiTreasholdLMin[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
-                    self.guiTreasholdLMax[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
+                    self.guiMin[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax*valuesMin[iLed]), ratioLines*sizeWindows, 3 )
+                    self.guiMax[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax*valuesMax[iLed]), ratioLines*sizeWindows, 3 )
                     
-    def getCurrentButtonsStates(self):
-        
-        currentButtonsBool = np.array([self.buttonsForSquare[iLed][i].isChecked() for iLed in range(self.nbLeds) for i in range(self.numSpectrumBands)])
-        currentButtonsBool = currentButtonsBool.reshape((self.nbLeds, self.numSpectrumBands))
-        
-        return currentButtonsBool
+                    self.guiThreashLow[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax*threashLow[iLed]), ratioLines*sizeWindows, 3 )
+                    self.guiThreashHigh[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax*threashHigh[iLed]), ratioLines*sizeWindows, 3 )
      
     ####################################
     ###    Gui Read Audio Button     ###
@@ -374,7 +328,7 @@ class LedGUI(QtGui.QWidget):
 
         try:
             p=pyaudio.PyAudio()
-
+            
             if LocalFile:
 
                 wf = wave.open(fileAudioPath, 'rb')
@@ -422,8 +376,8 @@ class LedGUI(QtGui.QWidget):
             valuesGen = LedsComputator.process(audio)
 
             lastValues = [0]*nbLeds
-            for spectrum, ledsValues, max, min, maxAudioSample in valuesGen:
-            
+            for spectrum, ledsValues, max, min, threashL, threashH, maxAudioSample in valuesGen:
+                
                 # Do not light up Leds if there is no sound.
                 if (maxAudioSample < 10):
                     ledsValues = [0 for i in range(len(ledsValues))]
@@ -434,10 +388,10 @@ class LedGUI(QtGui.QWidget):
                         ledsValues[i] = ledsValues[i] + (lastValues[i] - ledsValues[i]) * Smoothness[i]
                 
                 lastValues = ledsValues
-            
+                
                 GuiObject.changeSpectrum(spectrum)
                 GuiObject.changeLeds(ledsValues)
-                GuiObject.changeMinAndMaxOnSpectrum(max,min)
+                GuiObject.changeMinAndMaxOnSpectrum(max,min, threashL, threashH)
                 
         except Exception as e:
             GuiObject.close()
@@ -453,7 +407,7 @@ class LedGUI(QtGui.QWidget):
         Thread(None,LedGUI.processAudioImpl,args=(self,'',False)).start()
     
     def openFile(self):
-        fileName = QtGui.QFileDialog.getOpenFileName(self, 'OpenFile', 'D:\DevProjects\LED\RaspberryPi\FromSoundToLED\data', 'AudioFile (*.wav)')
+        fileName = QtGui.QFileDialog.getOpenFileName(self, 'OpenFile', 'D://DevProjects//FromSoundToLED//data', 'AudioFile (*.wav)')
         return fileName
         
        

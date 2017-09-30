@@ -38,23 +38,19 @@ logging.info("Starting script")
 rate = 22050
 CHUNK = 1024
 nbLeds = 3
-numSpectrumBands = 64
 
-buttonsBool = np.array([[1],[i for i in range(8,24)],[i for i in range(27,63)]])
+ThreashL = [0.4,0.3,0.3]
+ThreashU = [0.2,0.3,0.3]
 
-currentButtonsBool = np.array([i in buttonsBool[iLed] for iLed in range(nbLeds) for i in range(numSpectrumBands)])
-currentButtonsBool = currentButtonsBool.reshape((nbLeds, numSpectrumBands))
-
-Smoothness = [0.6,0.5,0.85]
-
-ThreashL = [0.3,0.3,0.05]
-ThreashU = [0.2,0.1,0.3]
+frequencySeparators = [[0,80], \
+                           [450, 700], \
+                           [800,2000]]
+smothness = [380, 340, 300]
 
 logging.info("Parameters :")
 logging.info("  - Rate : " + str(rate))
 logging.info("  - Chunk : " + str(CHUNK))
 logging.info("  - NbLeds : " + str(nbLeds))
-logging.info("  - numSpectrumBands : " + str(numSpectrumBands))
 
 def read_micro(audio_stream_input, num_samples, audio_stream_output = None):
     while 1:
@@ -71,70 +67,68 @@ def read_micro(audio_stream_input, num_samples, audio_stream_output = None):
         
         yield (samples_l, samples_r)
 
-try:
-    
-    subprocess.check_output("/usr/sbin/alsactl --file /usr/share/doc/audioInjector/asound.state.RCA.thru.test restore", shell=True)
-    
-    logging.info("Connect to Bluetooth : " + bd_addr + " on port " + str(port))
-    sock = bluetooth.BluetoothSocket (bluetooth.RFCOMM)
-    sock.connect((bd_addr,port))
-    
-    logging.info("Create pyAudio Object")
-    p=pyaudio.PyAudio()
-    
-    infosAudio = '\n' + '\n'.join([y['name'] for y in [p.get_device_info_by_index(x) for x in range(p.get_device_count())]])
-    logging.info("Informations about Audio :")
-    logging.info(infosAudio)
-    
-    logging.info("Create LedsComputator Object")
-    LedsComputator = LedsValuesComputation(nbLeds, numSpectrumBands, rate, CHUNK, currentButtonsBool, ThreashL, ThreashU)
+if __name__ == '__main__':
 
-    logging.info("Create Audio Input with PyAudio")
-    audio_stream_input = p.open(format=pyaudio.paInt16,\
-                                    channels=2,\
-                                    rate=rate,\
-                                    input=True,\
-                                    frames_per_buffer=CHUNK,
-                                    input_device_index=0)\
-      
-    logging.info("Create Audio Output with PyAudio")                              
-    audio_stream_output = p.open(format=pyaudio.paInt16,\
-                                    channels=2,\
-                                    rate=rate,\
-                                    output=True,\
-                                    frames_per_buffer=CHUNK,
-                                    output_device_index=0)\
-
-    logging.info("Launching Computation")
-    
-    audio = read_micro(audio_stream_input, CHUNK, audio_stream_output)
-    
-    valuesGen = LedsComputator.process(audio)
-
-    lastValues = [0]*nbLeds
-    for spectrum, ledsValues, maxV, minV, maxAudioSample in valuesGen:
-            
-        # Smooth Leds
-        for i in range(nbLeds):
-            if ledsValues[i] < lastValues[i]:
-                ledsValues[i] = ledsValues[i] + (lastValues[i] - ledsValues[i]) * Smoothness[i]
+    try:
         
-        lastValues = ledsValues
-            
-        text = 'b'
-        if (maxAudioSample > 10):
-            for v in ledsValues:
-                text += str(int(v*255)) + ','
-        else:
-            for v in ledsValues:
-                text += str(int(0)) + ','
-        text = text[:-1]
-        text += 'e'
-        sock.send(text)
-    
-except Exception as e:
-    logging.error("Error happened : " + str(e))
-    logging.error(traceback.format_exc())
-    print(e)
-    sock.close()
-    raise e
+        # subprocess.check_output("/usr/sbin/alsactl --file /usr/share/doc/audioInjector/asound.state.RCA.thru.test restore", shell=True)
+        
+        # logging.info("Connect to Bluetooth : " + bd_addr + " on port " + str(port))
+        # sock = bluetooth.BluetoothSocket (bluetooth.RFCOMM)
+        # sock.connect((bd_addr,port))
+        
+        logging.info("Create pyAudio Object")
+        p=pyaudio.PyAudio()
+        
+        infosAudio = '\n' + '\n'.join([y['name'] for y in [p.get_device_info_by_index(x) for x in range(p.get_device_count())]])
+        logging.info("Informations about Audio :")
+        logging.info(infosAudio)
+        
+        logging.info("Create LedsComputator Object")
+        LedsComputator = LedsValuesComputation(rate, CHUNK, frequencySeparators, smothness, ThreashL, ThreashU)
+
+        logging.info("Create Audio Input with PyAudio")
+        audio_stream_input = p.open(format=pyaudio.paInt16,\
+                                        channels=2,\
+                                        rate=rate,\
+                                        input=True,\
+                                        frames_per_buffer=CHUNK,
+                                        input_device_index=0)\
+          
+        logging.info("Create Audio Output with PyAudio")                              
+        audio_stream_output = p.open(format=pyaudio.paInt16,\
+                                        channels=2,\
+                                        rate=rate,\
+                                        output=True,\
+                                        frames_per_buffer=CHUNK,
+                                        output_device_index=0)\
+
+        logging.info("Launching Computation")
+        
+        audio = read_micro(audio_stream_input, CHUNK, audio_stream_output)
+        
+        valuesGen = LedsComputator.process(audio)
+
+        for spectrum, ledsValues, maxV, minV, maxAudioSample in valuesGen:
+                
+            # Do not light up Leds if there is no sound.
+            if (maxAudioSample < 10):
+                ledsValues = [0 for i in range(len(ledsValues))]
+                
+            text = 'b'
+            if (maxAudioSample > 10):
+                for v in ledsValues:
+                    text += str(int(v*255)) + ','
+            else:
+                for v in ledsValues:
+                    text += str(int(0)) + ','
+            text = text[:-1]
+            text += 'e'
+            # sock.send(text)
+        
+    except Exception as e:
+        logging.error("Error happened : " + str(e))
+        logging.error(traceback.format_exc())
+        print(e)
+        # sock.close()
+        raise e
