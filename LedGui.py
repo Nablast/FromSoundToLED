@@ -1,42 +1,38 @@
-import sys
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtGui import QPainter
-import pdb
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 
-import numpy as np
+import sys
 import math
-import pyaudio
-import wave
+from PyQt4 import QtGui, QtCore
+
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+
 from threading import Thread
 
-#Test
-import matplotlib.pyplot as plt
+from LedGuiAudioProcessor import AudioProcessor
+from SpectrumGuiObject import SpectrumGuiObject
 
-SampleRate = 22050
+import pdb
+
+SampleRate = 44100
 CHUNK = 1024
+nbLeds = 3
 
-sizeWindows = 1000
-numSpectrumBands = 128
-nbLeds = 4
+if nbLeds == 4:
+    frequencySeparators = [[0,110], \
+                           [450, 700], \
+                           [700,1200], \
+                           [5000,5500]]
+    smothness = [380, 340, 300, 280]
+elif nbLeds == 3:
+    frequencySeparators = [[30,110], \
+                           [450, 700], \
+                           [800,1200]]
+    smothness = [300, 275, 300]
 
-frequencySeparators = [[0,70], \
-                       [300, 600], \
-                       [600,1100], \
-                       [3000,3500]]
-
-ratioSizeSquareMax = 0.15
-ratioLines = 0.0035
-spaceBetweenLines = 0.0025
-
-from LedsValuesComputation import LedsValuesComputation
-
-Smoothness = [0.95,0.95,0.95,0.95]
-
-ThreashL = [0.3,0.3,0.15,0.15]
-ThreashU = [0.2,0.4,0.4,0.3]
-
-global stopAudio
-stopAudio = False
+from Hue2Rgb import hue2Rgb
+from LedGuiObject import LedGuiObject
 
 class changeLedsThread(QtCore.QThread):
 
@@ -78,165 +74,332 @@ class changeMinAndMaxOnSpectrumThread(QtCore.QThread):
     def run(self):
         self.emit(QtCore.SIGNAL("setMinAndMaxOnSpectrum(PyQt_PyObject)"), [self.valuesMax, self.valuesMin, self.threashL, self.threashH])
 
-class LedGUI(QtGui.QWidget):
 
-    def __init__(self, sizeWindows, numSpectrumBands, nbLeds):
+class SoundToLedGUI(QtGui.QWidget):
     
-        self.ledCurrentValues = [0]*nbLeds
-    
-        super(LedGUI, self).__init__()
-        self.resize(sizeWindows, sizeWindows)
+    def __init__(self):
+        super(SoundToLedGUI, self).__init__()
         
-        self.sizeWindows = sizeWindows
-        self.numSpectrumBands = numSpectrumBands
         self.nbLeds = nbLeds
+        self.frequencies = [SampleRate*i/CHUNK for i in range(1,int(CHUNK/2)+1)]
+        self.frequencySeparators = frequencySeparators
+        
+        self.audioProcessor = AudioProcessor(SampleRate, CHUNK, self.nbLeds, frequencySeparators, smothness)
+        
+        # Define led by Bins
+        self.setLedsBinsVar()
+        
+        # Define Led Colors
+        self.setLedColors()
+        
+        # Init UI
+        self.initUI()
+        
+    def closeEvent(self, evnt):
+        self.audioProcessor.stopAudio()
+        super(SoundToLedGUI, self).closeEvent(evnt)
+        
+    def setLedsBinsVar(self):
+     
+        self.ledByBins = [-2]*int(CHUNK/2)
+        self.binsByLed = []
+        for i in range(self.nbLeds):
+            self.binsByLed.append([])
+        for indexBin in range(int(CHUNK/2)):
+            currentFreq = self.frequencies[indexBin]
+            for iLed in range(len(self.frequencySeparators)):
+                if currentFreq >= self.frequencySeparators[iLed][0] and currentFreq < self.frequencySeparators[iLed][1]:
+                    self.ledByBins[indexBin] = iLed
+                    self.binsByLed[iLed].append(indexBin)
+                                    
+    def setLedColors(self):
+    
+        self.ledColors = []
+        for iLed in range(self.nbLeds):
+            Hue = iLed*360/self.nbLeds
+            r,g,b = hue2Rgb(Hue/360.0)
+            self.ledColors.append([r,g,b])
+        
+    def initUI(self):
+    
+        self.resize(800,800)
         
         # Background
         palette = QtGui.QPalette()
         palette.setColor(QtGui.QPalette.Background,QtCore.Qt.black)
         self.setPalette(palette) 
         
-        # Initialisations
-        self.initReadAudioButton()
-        self.initLEDs()
-        self.initSpectrum()
+        # Define Main Layout
+        layout_Main = QtGui.QVBoxLayout()
+        self.setLayout(layout_Main)
         
-        self.setWindowTitle('LED Simulation')
+        # First Line : Buttons
+        layoutButtons = self.initButtonsUI()
+        layout_Main.addLayout(layoutButtons)
+        layout_Main.setStretchFactor(layoutButtons, 10)
+        
+        splitter = QtGui.QSplitter(Qt.Vertical, self)
+        
+        # Second Line : Spectrums
+        widgetSpectrums = self.initSpectrumsUI()
+        splitter.addWidget(widgetSpectrums)
+        
+        # Third Line : Leds
+        widgetLeds = self.initLedsUI()
+        splitter.addWidget(widgetLeds)
+        
+        # Fourth Line : Parameters
+        widgetParameters = self.initParameters()
+        splitter.addWidget(widgetParameters)
+        
+        splitter.setStretchFactor(0,1)
+        splitter.setStretchFactor(1,1)
+        splitter.setStretchFactor(2,1)
+
+        layout_Main.addWidget(splitter)
+        layout_Main.setStretchFactor(splitter, 90)
+        
+        self.move(300, 150)
+        self.setWindowTitle('LedGui2')
         self.show()
         
-    def closeEvent(self, evnt):
-        global stopAudio
-        stopAudio = True
-        super(LedGUI, self).closeEvent(evnt)
+        print('Total Size :' + str(self.size()))
+        print('Splitter Size :' + str(splitter.size()))
+        print('Spectrum Size :' + str(widgetSpectrums.size()))
+        print('Led Size :' + str(widgetLeds.size()))
+        #print('Parameters Size :' + str(widgetParameters.size()))
         
-    # Used to paint LEDs
-    def paintEvent(self, e):
+    def initButtonsUI(self):
+        
+        layout_Buttons = QtGui.QHBoxLayout()
+        
+        # FirstLine : Buttons Read Local Sound
+        button_LocalSound = QtGui.QPushButton('Read Local Sound', self)
+        button_LocalSound.setCheckable(True)
+        button_LocalSound.clicked[bool].connect(self.processAudioLocal)
+        layout_Buttons.addWidget(button_LocalSound)
+        
+        # FirstLine : Buttons Read Micro Input
+        button_MicroInput = QtGui.QPushButton('Read Micro Input', self)
+        button_MicroInput.setCheckable(True)
+        button_MicroInput.clicked[bool].connect(self.processAudioMicro)
+        layout_Buttons.addWidget(button_MicroInput)
+        
+        return layout_Buttons
+        
+    def initSpectrumsUI(self):
     
-        painter = QPainter()
-        painter.begin(self)
+        widgetMain = QWidget(self)
+        layout_SpectrumMain = QtGui.QHBoxLayout(widgetMain)
         
-        for i in range(nbLeds):
-        
-            grad = QtGui.QRadialGradient(QtCore.QPointF(self.ledsRect[i].center()), 70.0)
-            grad.setColorAt(0, QtGui.QColor(self.ledCurrentValues[i]*self.ledColors[i][0], self.ledCurrentValues[i]*self.ledColors[i][1], self.ledCurrentValues[i]*self.ledColors[i][2]))
-            grad.setColorAt(1, QtCore.Qt.black)
-            painter.setBrush(grad)
-            painter.drawEllipse(self.ledsRect[i])
-        
-        painter.end()
-        
-    def initReadAudioButton(self):
-    
-        # Button Read Audio
-        but = QtGui.QPushButton('Read Local Sound', self)
-        but.setCheckable(True)
-        but.resize(0.2*self.sizeWindows,0.05*self.sizeWindows)
-        h = self.sizeWindows*(1/10) - 0.05*self.sizeWindows/2
-        w = self.sizeWindows*(1/4) - 0.2*self.sizeWindows/2
-        but.move(w, h)
-        but.clicked[bool].connect(self.processAudioLocal)
-
-        but2 = QtGui.QPushButton('Read Micro Input', self)
-        but2.setCheckable(True)
-        but2.resize(0.2*self.sizeWindows,0.05*self.sizeWindows)
-        h = self.sizeWindows*(1/10) - 0.05*self.sizeWindows/2
-        w = self.sizeWindows*(3/4) - 0.2*self.sizeWindows/2
-        but2.move(w, h)
-        but2.clicked[bool].connect(self.processAudioMicro)
-        
-    def initLEDs(self):
-    
-        self.ledsRect = []
-        
-
-        
-        squareSize = min(ratioSizeSquareMax*self.sizeWindows, 4 * self.sizeWindows / ((5*self.nbLeds)+1))
-        hSquares = self.sizeWindows*(5/6)
+        self.spectrumWidgets = [None]*self.nbLeds
         for iLed in range(self.nbLeds):
-            self.ledsRect.append(QtCore.QRect(self.sizeWindows*((iLed+1)/(self.nbLeds+1)) - squareSize/2, hSquares - squareSize/2, squareSize, squareSize))
-         
-    def initSpectrum(self):
-    
-        # xSpectrum = np.array([float(SampleRate)*float(i)/float(CHUNK) for i in range(int(CHUNK/2))])
-        # ySpectrum = np.array(range(int(CHUNK/2)))
         
-        # plt.ion()
-
-        # self.figTest = plt.figure()
-        # ax = self.figTest.add_subplot(111)
-        # self.lineTest, = ax.plot(xSpectrum, ySpectrum, 'r-') # Returns a tuple of line objects, thus the comma
-        # ax.axis([xSpectrum[0], xSpectrum[-1], 0, 1])
-        # self.figTest.canvas.draw()
-    
-        # Define led by Bins
-        frequencies = [SampleRate*i/CHUNK for i in range(1,int(CHUNK/2)+1)]
-        self.ledByBins = [-1]*int(CHUNK/2)
-        for indexBin in range(int(CHUNK/2)):
-            currentFreq = frequencies[indexBin]
-            for iLed in range(len(frequencySeparators)):
-                if currentFreq >= frequencySeparators[iLed][0] and currentFreq < frequencySeparators[iLed][1]:
-                    self.ledByBins[indexBin] = iLed
-                    
-        # Spectrum
-        self.spectrumLines = []
-        self.wSpectrum = []
-        self.ySpectrum = self.sizeWindows*(1/2)
-        self.heightSpectrumMax = self.sizeWindows*(1/4)
-        for i in range(0,self.numSpectrumBands):
-
-            self.spectrumLines.append(QtGui.QFrame(self))
-            self.wSpectrum.append(self.sizeWindows*(1/2) + (i - self.numSpectrumBands/2)*(ratioLines+spaceBetweenLines)*self.sizeWindows)
-            self.spectrumLines[i].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, self.ySpectrum, ratioLines*self.sizeWindows, 0 )
+            binValues = [float(iBin+1)/float(len(self.binsByLed[iLed])) for iBin in range(len(self.binsByLed[iLed]))]
             
-            # Line Color
-            if self.ledByBins[i] != -1:
-                r,g,b = self.ledColors[self.ledByBins[i]]
+            self.spectrumWidgets[iLed] = SpectrumGuiObject(self.ledColors[iLed], binValues)
+            
+            layout_SpectrumMain.addWidget(self.spectrumWidgets[iLed])
+            
+        return widgetMain
+        
+           
+    def initLedsUI(self):
+    
+        widgetMain = QWidget(self)
+        layout_LedMain = QtGui.QHBoxLayout(widgetMain)
+        self.ledWidget = [None]*self.nbLeds
+        for iLed in range(self.nbLeds):
+        
+            self.ledWidget[iLed] = LedGuiObject(self.ledColors[iLed])
+            layout_LedMain.addWidget(self.ledWidget[iLed])
+            
+        return widgetMain
+        
+    def initParameters(self):
+    
+        widgetMain = QWidget(self)
+        # layout_Parameter = QtGui.QGroupBox('Parameters', widgetMain)
+        
+        self.rangeSlider = 1000
+        
+        layout_Grid = QtGui.QGridLayout(widgetMain)
+        # layout_Parameter.setLayout(layout_Grid)
+        
+        # Freq : minFreq <-> maxFreq
+        # Value : 0 <-> 1
+        # 
+        # f(0) - > minFreq 
+        # f(1) -> maxFreq
+        #
+        # f(x) : x -> A*10^x + B
+        #
+        # conditions :
+        # A + B = minFreq
+        # A*10 + B = maxFreq
+        #
+        # A = minFreq - B
+        # B = (10*minFreq - maxFreq)/9
+        
+        minFreq = self.frequencies[0]
+        maxFreq = self.frequencies[-1]
+        
+        self.B = (10.0*minFreq - maxFreq)/9.0
+        self.A = minFreq - self.B
+        
+        self.spinBoxLow = [None]*self.nbLeds
+        self.spinBoxHigh = [None]*self.nbLeds
+        self.spinBoxSmooth = [None]*self.nbLeds
+        self.sliderLow = [None]*self.nbLeds
+        self.sliderHigh = [None]*self.nbLeds
+        self.sliderSmooth = [None]*self.nbLeds
+        
+        for i in range(self.nbLeds):
+        
+            # QSpinBox Low
+            self.spinBoxLow[i] = QtGui.QDoubleSpinBox()
+            self.spinBoxLow[i].setMinimum(self.frequencies[0])
+            self.spinBoxLow[i].setMaximum(self.frequencies[-1])
+            self.spinBoxLow[i].setAlignment(QtCore.Qt.AlignCenter)
+            self.spinBoxLow[i].editingFinished.connect(lambda x=i, isLow=True: self.onSpinBoxChanged(x, isLow))
+            layout_Grid.addWidget(self.spinBoxLow[i], 0, i, 1, 1)
+            
+            # Slider Low
+            self.sliderLow[i] = QtGui.QSlider(QtCore.Qt.Horizontal)
+            self.sliderLow[i].setRange(0,self.rangeSlider)
+            self.sliderLow[i].valueChanged.connect(lambda state, x=i, isLow=True: self.onSliderChanged(x, isLow))
+            layout_Grid.addWidget(self.sliderLow[i], 1, i, 1, 1)
+            
+            # QSpinBox High
+            self.spinBoxHigh[i] = QtGui.QDoubleSpinBox()
+            self.spinBoxHigh[i].setMinimum(self.frequencies[0])
+            self.spinBoxHigh[i].setMaximum(self.frequencies[-1])
+            self.spinBoxHigh[i].setAlignment(QtCore.Qt.AlignCenter)
+            self.spinBoxHigh[i].editingFinished.connect(lambda x=i, isLow=False: self.onSpinBoxChanged(x, isLow))
+            layout_Grid.addWidget(self.spinBoxHigh[i], 2, i, 1, 1)
+            
+            # Slider High
+            self.sliderHigh[i] = QtGui.QSlider(QtCore.Qt.Horizontal)
+            self.sliderHigh[i].setRange(0,self.rangeSlider)
+            self.sliderHigh[i].valueChanged.connect(lambda state, x=i, isLow=False: self.onSliderChanged(x, isLow))
+            layout_Grid.addWidget(self.sliderHigh[i], 3, i, 1, 1)
+
+            # QSpinBox Smoothness
+            self.spinBoxSmooth[i] = QtGui.QDoubleSpinBox()
+            self.spinBoxSmooth[i].setMinimum(0)
+            self.spinBoxSmooth[i].setMaximum(1000)
+            self.spinBoxSmooth[i].setAlignment(QtCore.Qt.AlignCenter)
+            self.spinBoxSmooth[i].editingFinished.connect(lambda x=i,: self.onSpinBoxSmoothChanged(x))
+            layout_Grid.addWidget(self.spinBoxSmooth[i], 4, i, 1, 1)
+            
+            # Slider Smoothness
+            self.sliderSmooth[i] = QtGui.QSlider(QtCore.Qt.Horizontal)
+            self.sliderSmooth[i].setRange(0,self.rangeSlider)
+            self.sliderSmooth[i].valueChanged.connect(lambda state, x=i: self.onSliderSmoothChanged(x))
+            layout_Grid.addWidget(self.sliderSmooth[i], 5, i, 1, 1)
+            
+            # have to be at the end to set also sliders
+            self.spinBoxLow[i].setValue(frequencySeparators[i][0])
+            self.spinBoxLow[i].editingFinished.emit()
+            self.spinBoxHigh[i].setValue(frequencySeparators[i][1])
+            self.spinBoxHigh[i].editingFinished.emit()
+            self.spinBoxSmooth[i].setValue(smothness[i])
+            self.spinBoxSmooth[i].editingFinished.emit()
+        
+        return widgetMain
+        
+    def addLineToSpectrum(self, iLed, value, currentColor):
+        
+        widgetLine = QtGui.QWidget()
+        
+        layout_SpectrumLine = QtGui.QVBoxLayout()
+            
+        frame_SpectrumLine = QtGui.QFrame()
+        frame_SpectrumLine.setFrameShape(QtGui.QFrame.StyledPanel)
+        r,g,b = currentColor
+        currentColorStr = "background-color: rgb(%i, %i, %i)" % (r,g,b)
+        
+        frame_SpectrumLine.setStyleSheet(currentColorStr)
+        
+        layout_SpectrumLine.addStretch(100-int(value*100.0))
+        layout_SpectrumLine.addWidget(frame_SpectrumLine, QtCore.Qt.AlignBottom)
+        layout_SpectrumLine.setStretchFactor(frame_SpectrumLine, int(value*100.0))
+        layout_SpectrumLine.setSpacing(0)
+        
+        # widgetLine.setLayout(layout_SpectrumLine)
+        
+        self.layoutSpectrums[iLed].addLayout(layout_SpectrumLine)
+        
+    def removeLineFromSpectrum(self, iLed):
+    
+        widgetLineLayout = self.layoutSpectrums[iLed].takeAt(self.layoutSpectrums[iLed].count()-1)
+    
+        frame = widgetLineLayout.takeAt(1)
+        stretch = widgetLineLayout.takeAt(0)
+        
+        frame.widget().setParent(None)
+    
+        widgetLineLayout.setParent(None)
+        widgetLineLayout.deleteLater()
+        
+    def onSpinBoxSmoothChanged(self, iLed):
+        
+        smoothValue = float(self.spinBoxSmooth[iLed].value())
+        
+        self.sliderSmooth[iLed].setValue(int(smoothValue*self.rangeSlider / 1000.0 ))
+        
+        self.audioProcessor.setSmoothness(iLed, smoothValue)  
+        
+    def onSpinBoxChanged(self, iLed, isLow):
+    
+        fMin = float(self.spinBoxLow[iLed].value())
+        fMax = float(self.spinBoxHigh[iLed].value())
+        
+        if isLow:
+  
+            if fMin > fMax:
+                self.spinBoxHigh[iLed].setValue(fMin)
+                
+            xMin = math.log10((fMin - self.B) / self.A)
+            self.sliderLow[iLed].setValue(int(xMin*self.rangeSlider))
+        else:
+            if fMax < fMin:
+                self.spinBoxLow[iLed].setValue(fMax)
+                
+            xMax = math.log10((fMax - self.B) / self.A)
+            self.sliderHigh[iLed].setValue(int(xMax*self.rangeSlider))
+            
+        self.audioProcessor.setFrequencySeparators(iLed, fMin, fMax)    
+        
+    def onSliderSmoothChanged(self, iLed):
+
+        smoothValue = float(self.sliderSmooth[iLed].value()) * 1000.0 / float(self.rangeSlider)
+        
+        self.spinBoxSmooth[iLed].setValue(smoothValue) 
+        
+        self.audioProcessor.setSmoothness(iLed, smoothValue)
+    
+    def onSliderChanged(self, iLed, isLow):
+        
+        xMin = float(self.sliderLow[iLed].value()) / float(self.rangeSlider)
+        xMax = float(self.sliderHigh[iLed].value()) / float(self.rangeSlider)
+        
+        if xMax < xMin:
+            if isLow:
+                xMax = xMin
+                self.sliderHigh[iLed].setValue(xMax*float(self.rangeSlider))  
             else:
-                r,g,b = [255,255,255]
-            self.spectrumLines[i].setStyleSheet("QWidget { background-color: %s }" % QtGui.QColor(r, g, b).name())
+                xMin = xMax
+                self.sliderLow[iLed].setValue(xMin*float(self.rangeSlider))  
+            
+        fMin = (self.A * float(math.pow(10,xMin))) + self.B
+        fMax = (self.A * float(math.pow(10,xMax))) + self.B
         
-        # Min and Max on GUI
-        self.heightMinMaxFrame = ratioLines*self.sizeWindows*0.2
-        self.guiMin = []
-        self.guiMax = []
-        self.guiThreashLow = []
-        self.guiThreashHigh = []
-        for i in range(0,self.numSpectrumBands):
-            self.guiMin.append([])
-            self.guiMax.append([])
-            self.guiThreashLow.append([])
-            self.guiThreashHigh.append([])
-            for iLed in range(self.nbLeds):
-
-                colorLed = QtGui.QColor(self.ledColors[iLed][0],self.ledColors[iLed][1],self.ledColors[iLed][2])
-                colorLed2 = QtGui.QColor(self.ledColors[iLed][0] - 0.2,self.ledColors[iLed][1] - 0.2,self.ledColors[iLed][2] - 0.2)
-
-                self.guiMin[i].append(QtGui.QFrame(self))
-                self.guiMin[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
-                self.guiMin[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed.name())
-                
-                self.guiMax[i].append(QtGui.QFrame(self))
-                self.guiMax[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
-                self.guiMax[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed.name())
-                
-                self.guiThreashLow[i].append(QtGui.QFrame(self))
-                self.guiThreashLow[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
-                self.guiThreashLow[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed2.name())
-                
-                self.guiThreashHigh[i].append(QtGui.QFrame(self))
-                self.guiThreashHigh[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, 0, ratioLines*self.sizeWindows, 0 )
-                self.guiThreashHigh[i][iLed].setStyleSheet("QWidget { background-color: %s }" % colorLed2.name())
-                
-        # Escalier au début pour faire jolie
-        test = []
-        for i in range(0,self.numSpectrumBands):
-            test.append(i/self.numSpectrumBands)
-        self.setSpectrum(test)
+        self.spinBoxLow[iLed].setValue(fMin)
+        self.spinBoxHigh[iLed].setValue(fMax)
         
-    ##########################
-    ###      Gui LEDS      ###
-    ##########################  
-        
+        self.audioProcessor.setFrequencySeparators(iLed, fMin, fMax)
+           
     def changeLeds(self,values):
         thread = changeLedsThread(values)
         self.connect(thread, QtCore.SIGNAL("setLeds(PyQt_PyObject)"), self.setLeds)
@@ -244,23 +407,18 @@ class LedGUI(QtGui.QWidget):
         
     def setLeds(self,valuesForEachLed):
         
-        self.ledCurrentValues = valuesForEachLed
-        self.update()
+        for i in range(self.nbLeds):
+            self.ledWidget[i].setLedValue(valuesForEachLed[i])
         
-        
-    ###########################
-    ###    Gui Spectrum     ###
-    ###########################
-    
-    def changeSpectrum(self,values):
+    def changeSpectrums(self,values):
         thread = changeSpectrumThread(values)
-        self.connect(thread, QtCore.SIGNAL("setSpectrum(PyQt_PyObject)"), self.setSpectrum)
+        self.connect(thread, QtCore.SIGNAL("setSpectrum(PyQt_PyObject)"), self.setSpectrums)
         thread.start()
         
-    def setSpectrum(self,values):
+    def setSpectrums(self,values):
        
-        for i in range(numSpectrumBands):
-            self.spectrumLines[i].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax * values[i]), ratioLines*sizeWindows, int(self.heightSpectrumMax*values[i]))
+        for iLed in range(self.nbLeds):
+            self.spectrumWidgets[iLed].setSpectrum(values[iLed])
         
     def changeMinAndMaxOnSpectrum(self,valuesMax,valuesMin, threashL, threashH):
         thread = changeMinAndMaxOnSpectrumThread(valuesMax,valuesMin, threashL, threashH)
@@ -274,146 +432,26 @@ class LedGUI(QtGui.QWidget):
         threashLow = valuesMaxMinThreshLU[2]
         threashHigh = valuesMaxMinThreshLU[3]
         
-        # Pour chaque bande de spectre
-        for i in range(0,self.numSpectrumBands):
-            
-            #Pour chaque Led
-            for iLed in range(self.nbLeds):
-                if (self.ledByBins[i] == iLed):
-                    
-                    self.guiMin[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax*valuesMin[iLed]), ratioLines*sizeWindows, 3 )
-                    self.guiMax[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax*valuesMax[iLed]), ratioLines*sizeWindows, 3 )
-                    
-                    self.guiThreashLow[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax*threashLow[iLed]), ratioLines*sizeWindows, 3 )
-                    self.guiThreashHigh[i][iLed].setGeometry(self.wSpectrum[i]-ratioLines*self.sizeWindows/2, int(self.ySpectrum - self.heightSpectrumMax*threashHigh[iLed]), ratioLines*sizeWindows, 3 )
-     
-    ####################################
-    ###    Gui Read Audio Button     ###
-    ####################################
-    
-    # Convert the audio data to numbers, num_samples at a time.
-    def read_audio(self, audio_stream_input, audio_stream_output, num_samples,sound, wf, ):
-        global stopAudio
-        while sound != b'' and not (stopAudio):
-            audio_stream_output.write(sound)
-            # Read all the input data. 
-            # samples = audio_stream_input.read(num_samples) 
-            # Convert input data to numbers
-            samplesNp = np.fromstring(sound, dtype=np.int16).astype(np.float)
-            samples_l = samplesNp[::2]  
-            samples_r = samplesNp[1::2]
-            sound = wf.readframes(num_samples)
-                 
-            yield (samples_l, samples_r)
-            
-        if not (stopAudio):
-            print('Sound stop')
-
-
-    def read_micro(self, audio_stream_input, audio_stream_output, num_samples):
-    
-        while 1:
-            
-            # Read all the input data. 
-            samples = audio_stream_input.read(num_samples) 
-            # Convert input data to numbers
-            samplesNp = np.fromstring(samples, dtype=np.int16).astype(np.float)
-            samples_l = samplesNp[::2]  
-            samples_r = samplesNp[1::2]
-            audio_stream_output.write(samples)
-                 
-            yield (samples_l, samples_r)
-     
-    def processAudioImpl(GuiObject, fileAudioPath,LocalFile):
-
-        try:
-            p=pyaudio.PyAudio()
-            
-            if LocalFile:
-
-                wf = wave.open(fileAudioPath, 'rb')
-                TestSampleRate = wf.getframerate()
-                p=pyaudio.PyAudio()
-                
-                # Reading Sound at SampleRate : SampleRate
-
-                LedsComputator = LedsValuesComputation(SampleRate, CHUNK, frequencySeparators,  ThreashL, ThreashU)
-
-                audio_stream_input =p.open(format=p.get_format_from_width(wf.getsampwidth()),\
-                                            channels=wf.getnchannels(),\
-                                            rate = SampleRate,\
-                                            input=True,\
-                                            frames_per_buffer=CHUNK)\
-                                            
-                audio_stream_output =p.open(format=p.get_format_from_width(wf.getsampwidth()),\
-                                            channels=wf.getnchannels(),\
-                                            rate = TestSampleRate,\
-                                            output=True,\
-                                            frames_per_buffer=CHUNK)\
-
-                sound = wf.readframes(CHUNK)
-
-                audio = GuiObject.read_audio(audio_stream_input,audio_stream_output, CHUNK, sound, wf)
-
-            else:
-
-                LedsComputator = LedsValuesComputation(SampleRate, CHUNK, frequencySeparators, ThreashL, ThreashU)
-
-                audio_stream_input = p.open(format=pyaudio.paInt16,\
-                                            channels=2,\
-                                            rate=SampleRate,\
-                                            input=True,\
-                                            frames_per_buffer=CHUNK)\
-
-                audio_stream_output =p.open(format=pyaudio.paInt16,\
-                                            channels=2,\
-                                            rate = SampleRate,\
-                                            output=True,\
-                                            frames_per_buffer=CHUNK)\
-
-                audio = GuiObject.read_micro(audio_stream_input,audio_stream_output, CHUNK)          
-                
-            valuesGen = LedsComputator.process(audio)
-
-            lastValues = [0]*nbLeds
-            for spectrum, ledsValues, max, min, threashL, threashH, maxAudioSample in valuesGen:
-                
-                # Do not light up Leds if there is no sound.
-                if (maxAudioSample < 10):
-                    ledsValues = [0 for i in range(len(ledsValues))]
-            
-                # Smooth Leds
-                for i in range(nbLeds):
-                    if ledsValues[i] < lastValues[i]:
-                        ledsValues[i] = ledsValues[i] + (lastValues[i] - ledsValues[i]) * Smoothness[i]
-                
-                lastValues = ledsValues
-                
-                GuiObject.changeSpectrum(spectrum)
-                GuiObject.changeLeds(ledsValues)
-                GuiObject.changeMinAndMaxOnSpectrum(max,min, threashL, threashH)
-                
-        except Exception as e:
-            GuiObject.close()
-            raise(e)
-    
+        for iLed in range(self.nbLeds):
+            self.spectrumWidgets[iLed].setMinMax(valuesMin[iLed], valuesMax[iLed])
+           
     def processAudioLocal(self, pressed):
         
         fileAudioPath = self.openFile()
-        Thread(None,LedGUI.processAudioImpl,args=(self,fileAudioPath,True)).start()
+        Thread(None,self.audioProcessor.process,args=(self,fileAudioPath,True)).start()
 
     def processAudioMicro(self, pressed):
         
-        Thread(None,LedGUI.processAudioImpl,args=(self,'',False)).start()
-    
+        Thread(None,self.audioProcessor.process,args=(self,'',False)).start()
+        
     def openFile(self):
         fileName = QtGui.QFileDialog.getOpenFileName(self, 'OpenFile', 'D://DevProjects//FromSoundToLED//data', 'AudioFile (*.wav)')
         return fileName
         
-       
-if __name__ == '__main__':
-
+def main():
     app = QtGui.QApplication(sys.argv)
-    ex = LedGUI(sizeWindows, numSpectrumBands, nbLeds)
+    ex = SoundToLedGUI()
     sys.exit(app.exec_())
-    ex.stopMe()
+
+if __name__ == '__main__':
+    main()
