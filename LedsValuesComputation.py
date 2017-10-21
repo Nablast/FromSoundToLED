@@ -226,7 +226,7 @@ class LedsValuesComputation:
                 spectrums[iLed] = self.exaggerateSpectrum(spectrums[iLed], exponent=2)
             
                 # Smooth spectrum
-                spectrums[iLed] = self.smoothSpectrum(iLed, spectrums[iLed], falloff=0.3)
+                spectrums[iLed] = self.smoothSpectrum(iLed, spectrums[iLed], falloff=0.1)
                                
                 # Compute ledsValue in terms of spectrum
                 ledsValues[iLed] = self.computeLedsValueFromSpectrum(spectrums[iLed], iLed)
