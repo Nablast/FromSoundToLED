@@ -40,12 +40,12 @@ CHUNK = 1024
 nbLeds = 3
 
 ThreashL = [0.1,0.3,0.2,]
-ThreashU = [0.2,0.2,0.4]
+ThreashU = [0.3,0.2,0.4]
 
-frequencySeparators = [[30,110], \
+frequencySeparators = [[40,70], \
                        [450, 700], \
                        [800,1200]]
-smothness = [300, 275, 300]
+smothness = [90, 90, 90]
 
 logging.info("Parameters :")
 logging.info("  - Rate : " + str(rate))
