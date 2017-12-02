@@ -219,7 +219,6 @@ class SoundToLedGUI(QtGui.QWidget):
     def initParameters(self):
     
         widgetMain = QWidget(self)
-        # layout_Parameter = QtGui.QGroupBox('Parameters', widgetMain)
         
         self.rangeSlider = 1000
         

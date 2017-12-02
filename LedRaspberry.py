@@ -39,14 +39,13 @@ rate = 44100
 CHUNK = 1024
 nbLeds = 3
 
-ThreashL = [0.2,0.3,0.3]
-ThreashU = [0.2,0.3,0.3]
+ThreashL = [0.1,0.3,0.2,]
+ThreashU = [0.2,0.2,0.4]
 
-frequencySeparators = [[0,80], \
-                           [450, 700], \
-                           [800,2000]]
-
-smothness = [200, 200, 200]
+frequencySeparators = [[30,110], \
+                       [450, 700], \
+                       [800,1200]]
+smothness = [300, 275, 300]
 
 logging.info("Parameters :")
 logging.info("  - Rate : " + str(rate))
@@ -111,8 +110,6 @@ if __name__ == '__main__':
         valuesGen = LedsComputator.process(audio, returnOnlyLedsValues=True)
 
         for ledsValues, maxAudioSample in valuesGen:
-                
-            # print(maxAudioSample)
                 
             text = 'b'
             if (maxAudioSample > 10):
